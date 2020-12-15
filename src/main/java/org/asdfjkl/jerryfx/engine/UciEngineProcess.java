@@ -1,5 +1,11 @@
 package org.asdfjkl.jerryfx.engine;
 
+import javafx.application.Platform;
+import org.asdfjkl.jerryfx.gui.EngineThread;
+import org.asdfjkl.jerryfx.gui.ModeMenuController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.Closeable;
@@ -9,23 +15,65 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class UciEngineProcess implements AutoCloseable {
 
+    private static final Logger _logger = LoggerFactory.getLogger(UciEngineProcess.class);
     public static final int MAX_LINES = 100;
-    private final Process _process;
-    private final BufferedWriter _sender;
-    private final BufferedReader _receiver;
+    private final ModeMenuController _modeMenuController;
 
-    public UciEngineProcess(final File path)
+    private Process _process;
+    private BufferedWriter _sender;
+    private BufferedReader _receiver;
+    private EngineThread engineThread;
+    final BlockingQueue<String> cmdQueue = new LinkedBlockingQueue<>();
+
+    public UciEngineProcess(final ModeMenuController modeMenuController) {
+        _modeMenuController = modeMenuController;
+    }
+
+    public void start(final File path)
             throws IOException {
         _process = Runtime.getRuntime().exec(path.getAbsolutePath());
         _receiver = new BufferedReader(new InputStreamReader(_process.getInputStream()));
         _sender = new BufferedWriter(new OutputStreamWriter(_process.getOutputStream()));
+        final AtomicReference<String> count = new AtomicReference<>();
+        //cmdQueue = new LinkedBlockingQueue<String>();
+        engineThread = new EngineThread(this, path);
+        engineThread.stringProperty().addListener((observable, oldValue, newValue) -> {
+            _logger.debug("Listener: {}, {}->{}", observable, oldValue, newValue);
+            if (count.getAndSet(newValue) == null) {
+                Platform.runLater(() -> {
+                    String value = count.getAndSet(null);
+                    // TODO: put this back
+                    _modeMenuController.handleEngineInfo(value);
+                });
+            }
+        });
+        // Don't start the thread until we're ready to use the engine!
+        engineThread.start();
+    }
+
+    public BlockingQueue<String> getCommandQueue() {
+        return cmdQueue;
+    }
+
+    public void acceptCommand(final String cmd) {
+        try {
+            _logger.debug("Accept command: {}", cmd);
+            cmdQueue.put(cmd);
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void send(final String cmd)
             throws IOException {
+        _logger.debug("Sending: {}", cmd);
         _sender.write(cmd + "\n");
         _sender.flush();
     }

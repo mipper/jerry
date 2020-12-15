@@ -111,10 +111,11 @@ public class GameModel {
         activeEngine = stockfish;
 
         book = new Polyglot();
-        File file = null;
         if(bookPath != null) {
-            file = new File(bookPath);
-            book.loadBook(file);
+            File file = new File(bookPath);
+            if (file.exists()) {
+                book.loadBook(file);
+            }
         }
 
     }

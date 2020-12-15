@@ -22,6 +22,8 @@ import org.asdfjkl.jerryfx.lib.Board;
 import org.asdfjkl.jerryfx.lib.CONSTANTS;
 import org.asdfjkl.jerryfx.lib.GameNode;
 import org.asdfjkl.jerryfx.lib.Move;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
@@ -30,30 +32,37 @@ import java.util.Locale;
 
 public class ModeMenuController implements StateChangeListener {
 
-    final GameModel gameModel;
-    final EngineOutputView engineOutputView;
-    EngineController engineController;
+    private static final Logger _logger = LoggerFactory.getLogger(ModeMenuController.class);
+
+    private final GameModel gameModel;
+    private final EngineOutputView engineOutputView;
+    private EngineController engineController;
 
     public ModeMenuController(GameModel gameModel, EngineOutputView engineOutputView) {
-
         this.gameModel = gameModel;
         this.engineOutputView = engineOutputView;
     }
 
-    public void handleEngineInfo(String s) {
+    public GameModel getGameModel() {
+        return gameModel;
+    }
 
+    public void handleEngineInfo(String s) {
         if(s.startsWith("INFO")) {
             //"INFO |Stockfish 12 (Level MAX)|145.081 kn/s||(#0)  23. Be7#||||"
             String[] sSplit = s.split("\\|");
-            if(gameModel.getGame().getCurrentNode().getBoard().isCheckmate() && sSplit.length > 1) {
+            if(getGameModel().getGame().getCurrentNode().getBoard().isCheckmate() && sSplit.length > 1) {
                 String sTemp = "|" + sSplit[1] + "|||(#0)|";
                 this.engineOutputView.setText(sTemp);
             } else {
                 this.engineOutputView.setText(s.substring(5));
             }
         }
-        if(s.startsWith("BESTMOVE")) {
+        else if(s.startsWith("BESTMOVE")) {
             handleBestMove(s);
+        }
+        else {
+            _logger.info("Ignoring response: {}", s);
         }
     }
 
@@ -62,38 +71,37 @@ public class ModeMenuController implements StateChangeListener {
     }
 
     public void activateAnalysisMode() {
-
-        gameModel.lastSeenBestmove = "";
+        getGameModel().lastSeenBestmove = "";
         // first change gamestate and reset engine
         engineController.sendCommand("stop");
         engineController.sendCommand("quit");
-        String cmdEngine = gameModel.activeEngine.getPath();
+        String cmdEngine = getGameModel().activeEngine.getPath();
         engineController.sendCommand("start "+cmdEngine);
         engineController.sendCommand("uci");
         engineController.sendCommand("ucinewgame");
-        for(EngineOption enOpt : gameModel.activeEngine.options) {
+        for(EngineOption enOpt : getGameModel().activeEngine.options) {
             if(enOpt.isNotDefault()) {
                 engineController.sendCommand(enOpt.toUciCommand());
             }
         }
-        if(gameModel.activeEngine.supportsMultiPV()) {
-            engineController.sendCommand("setoption name MultiPV value " + gameModel.getMultiPv());
+        if(getGameModel().activeEngine.supportsMultiPV()) {
+            engineController.sendCommand("setoption name MultiPV value " + getGameModel().getMultiPv());
         }
-        gameModel.setMode(GameModel.MODE_ANALYSIS);
-        gameModel.triggerStateChange();
+        getGameModel().setMode(GameModel.MODE_ANALYSIS);
+        getGameModel().triggerStateChange();
     }
 
     public void activateEnterMovesMode() {
-        gameModel.lastSeenBestmove = "";
-        engineController.sendCommand("stop");
-        engineController.sendCommand("quit");
-        gameModel.setMode(GameModel.MODE_ENTER_MOVES);
-        gameModel.triggerStateChange();
+        getGameModel().lastSeenBestmove = "";
+//        engineController.sendCommand("stop");
+//        engineController.sendCommand("quit");
+        getGameModel().setMode(GameModel.MODE_ENTER_MOVES);
+        getGameModel().triggerStateChange();
     }
 
     private void handleStateChangeAnalysis() {
 
-        String fen = gameModel.getGame().getCurrentNode().getBoard().fen();
+        String fen = getGameModel().getGame().getCurrentNode().getBoard().fen();
         engineController.sendCommand("stop");
         engineController.sendCommand("position fen "+fen);
         engineController.sendCommand("go infinite");
@@ -104,26 +112,26 @@ public class ModeMenuController implements StateChangeListener {
 
         boolean continueAnalysis = true;
 
-        boolean parentIsRoot = (gameModel.getGame().getCurrentNode().getParent() == gameModel.getGame().getRootNode());
+        boolean parentIsRoot = (getGameModel().getGame().getCurrentNode().getParent() == getGameModel().getGame().getRootNode());
         if(!parentIsRoot) {
             // if the current position is in the opening book,
             // we stop the analysis
-            long zobrist = gameModel.getGame().getCurrentNode().getBoard().getZobrist();
-            if(gameModel.book.inBook(zobrist)) {
-                gameModel.getGame().getCurrentNode().setComment("last book move");
+            long zobrist = getGameModel().getGame().getCurrentNode().getBoard().getZobrist();
+            if(getGameModel().book.inBook(zobrist)) {
+                getGameModel().getGame().getCurrentNode().setComment("last book move");
                 continueAnalysis = false;
             } else {
                 // otherwise continue the analysis
-                if (gameModel.getGameAnalysisJustStarted()) {
-                    gameModel.setGameAnalysisJustStarted(false);
+                if (getGameModel().getGameAnalysisJustStarted()) {
+                    getGameModel().setGameAnalysisJustStarted(false);
                 } else {
-                    gameModel.getGame().goToParent();
+                    getGameModel().getGame().goToParent();
                 }
-                String fen = gameModel.getGame().getCurrentNode().getBoard().fen();
+                String fen = getGameModel().getGame().getCurrentNode().getBoard().fen();
                 engineController.sendCommand("stop");
                 engineController.sendCommand("position fen " + fen);
                 //System.out.println("go movetime "  + (gameModel.getGameAnalysisThinkTime() * 1000));
-                engineController.sendCommand("go movetime " + (gameModel.getGameAnalysisThinkTime() * 1000));
+                engineController.sendCommand("go movetime " + (getGameModel().getGameAnalysisThinkTime() * 1000));
             }
         } else {
             continueAnalysis = false;
@@ -131,7 +139,7 @@ public class ModeMenuController implements StateChangeListener {
 
         if(!continueAnalysis) {
             // we are at the root or found a book move
-            gameModel.getGame().setTreeWasChanged(true);
+            getGameModel().getGame().setTreeWasChanged(true);
             activateEnterMovesMode();
             //FlatAlert alert = new FlatAlert(Alert.AlertType.INFORMATION);
             DialogSimpleAlert dlg = new DialogSimpleAlert();
@@ -139,132 +147,84 @@ public class ModeMenuController implements StateChangeListener {
         }
     }
 
-    public void activatePlayWhiteMode() {
-        gameModel.lastSeenBestmove = "";
-        // first change gamestate and reset engine
-        engineController.sendCommand("stop");
-        engineController.sendCommand("quit");
-        String cmdEngine = gameModel.activeEngine.getPath();
-        engineController.sendCommand("start "+cmdEngine);
-        engineController.sendCommand("uci");
-        engineController.sendCommand("ucinewgame");
-        for(EngineOption enOpt : gameModel.activeEngine.options) {
-            if(enOpt.isNotDefault()) {
-                engineController.sendCommand(enOpt.toUciCommand());
-            }
-        }
-        if(gameModel.activeEngine.isInternal()) {
-            engineController.sendCommand("setoption name Skill Level value "+gameModel.getEngineStrength());
-        }
-        // trigger statechange
-        gameModel.setMode(GameModel.MODE_PLAY_WHITE);
-        gameModel.setFlipBoard(false);
-        gameModel.setHumanPlayerColor(CONSTANTS.WHITE);
-        gameModel.triggerStateChange();
-    }
-
-    public void activatePlayBlackMode() {
-        gameModel.lastSeenBestmove = "";
-        // first change gamestate and reset engine
-        engineController.sendCommand("stop");
-        engineController.sendCommand("quit");
-        String cmdEngine = gameModel.activeEngine.getPath();
-        engineController.sendCommand("start "+cmdEngine);
-        engineController.sendCommand("uci");
-        engineController.sendCommand("ucinewgame");
-        for(EngineOption enOpt : gameModel.activeEngine.options) {
-            if(enOpt.isNotDefault()) {
-                engineController.sendCommand(enOpt.toUciCommand());
-            }
-        }
-        if(gameModel.activeEngine.isInternal()) {
-            engineController.sendCommand("setoption name Skill Level value "+gameModel.getEngineStrength());
-        }
-        // trigger statechange
-        gameModel.setMode(GameModel.MODE_PLAY_BLACK);
-        gameModel.setFlipBoard(true);
-        gameModel.setHumanPlayerColor(CONSTANTS.BLACK);
-        gameModel.triggerStateChange();
-    }
-
     public void activatePlayoutPositionMode() {
-        gameModel.lastSeenBestmove = "";
+        getGameModel().lastSeenBestmove = "";
         // first change gamestate and reset engine
         engineController.sendCommand("stop");
         engineController.sendCommand("quit");
-        String cmdEngine = gameModel.activeEngine.getPath();
+        String cmdEngine = getGameModel().activeEngine.getPath();
         engineController.sendCommand("start "+cmdEngine);
         engineController.sendCommand("uci");
         engineController.sendCommand("ucinewgame");
-        for(EngineOption enOpt : gameModel.activeEngine.options) {
+        for(EngineOption enOpt : getGameModel().activeEngine.options) {
             if(enOpt.isNotDefault()) {
                 engineController.sendCommand(enOpt.toUciCommand());
             }
         }
         // trigger statechange
-        gameModel.setMode(GameModel.MODE_PLAYOUT_POSITION);
-        gameModel.setFlipBoard(false);
-        gameModel.triggerStateChange();
+        getGameModel().setMode(GameModel.MODE_PLAYOUT_POSITION);
+        getGameModel().setFlipBoard(false);
+        getGameModel().triggerStateChange();
     }
 
     public void activateGameAnalysisMode() {
 
-        gameModel.lastSeenBestmove = "";
+        getGameModel().lastSeenBestmove = "";
 
-        gameModel.getGame().removeAllComments();
-        gameModel.getGame().removeAllVariants();
-        gameModel.getGame().removeAllAnnotations();
-        gameModel.getGame().setTreeWasChanged(true);
+        getGameModel().getGame().removeAllComments();
+        getGameModel().getGame().removeAllVariants();
+        getGameModel().getGame().removeAllAnnotations();
+        getGameModel().getGame().setTreeWasChanged(true);
 
         engineController.sendCommand("stop");
         engineController.sendCommand("quit");
-        String cmdEngine = gameModel.activeEngine.getPath();
+        String cmdEngine = getGameModel().activeEngine.getPath();
         engineController.sendCommand("start "+cmdEngine);
         engineController.sendCommand("uci");
         engineController.sendCommand("ucinewgame");
-        if(gameModel.activeEngine.supportsMultiPV()) {
+        if(getGameModel().activeEngine.supportsMultiPV()) {
             engineController.sendCommand("setoption name MultiPV value 1");
         }
-        gameModel.setFlipBoard(false);
-        gameModel.getGame().goToRoot();
-        gameModel.getGame().goToLeaf();
-        if(gameModel.getGame().getCurrentNode().getBoard().isCheckmate()) {
-            gameModel.currentIsMate = true;
-            gameModel.currentMateInMoves = 0;
+        getGameModel().setFlipBoard(false);
+        getGameModel().getGame().goToRoot();
+        getGameModel().getGame().goToLeaf();
+        if(getGameModel().getGame().getCurrentNode().getBoard().isCheckmate()) {
+            getGameModel().currentIsMate = true;
+            getGameModel().currentMateInMoves = 0;
         }
 
-        gameModel.setGameAnalysisJustStarted(true);
-        gameModel.triggerStateChange();
+        getGameModel().setGameAnalysisJustStarted(true);
+        getGameModel().triggerStateChange();
 
     }
 
     public void handleStateChangePlayWhiteOrBlack() {
         // first check if we can apply a bookmove
-        long zobrist = gameModel.getGame().getCurrentNode().getBoard().getZobrist();
-        ArrayList<String> uciMoves0 = gameModel.book.findMoves(zobrist);
-        if(gameModel.book.inBook(zobrist)) {
-            ArrayList<String> uciMoves = gameModel.book.findMoves(zobrist);
+        long zobrist = getGameModel().getGame().getCurrentNode().getBoard().getZobrist();
+        ArrayList<String> uciMoves0 = getGameModel().book.findMoves(zobrist);
+        if(getGameModel().book.inBook(zobrist)) {
+            ArrayList<String> uciMoves = getGameModel().book.findMoves(zobrist);
             int idx = (int) (Math.random() * uciMoves.size());
             handleBestMove("BESTMOVE|"+uciMoves.get(idx));
         } else {
-            String fen = gameModel.getGame().getCurrentNode().getBoard().fen();
+            String fen = getGameModel().getGame().getCurrentNode().getBoard().fen();
             engineController.sendCommand("stop");
             engineController.sendCommand("position fen "+fen);
-            engineController.sendCommand("go movetime "+(gameModel.getComputerThinkTimeSecs()*1000));
+            engineController.sendCommand("go movetime "+(getGameModel().getComputerThinkTimeSecs() * 1000));
         }
     }
 
     public void handleStateChangePlayoutPosition() {
 
-        String fen = gameModel.getGame().getCurrentNode().getBoard().fen();
+        String fen = getGameModel().getGame().getCurrentNode().getBoard().fen();
         engineController.sendCommand("stop");
         engineController.sendCommand("position fen "+fen);
-        engineController.sendCommand("go movetime "+(gameModel.getComputerThinkTimeSecs()*1000));
+        engineController.sendCommand("go movetime "+(getGameModel().getComputerThinkTimeSecs() * 1000));
     }
 
     private void addBestPv(String[] uciMoves) {
         //String[] uciMoves = gameModel.currentBestPv.split(" ");
-        GameNode currentNode = gameModel.getGame().getCurrentNode();
+        GameNode currentNode = getGameModel().getGame().getCurrentNode();
 
         for (String uciMove : uciMoves) {
             try {
@@ -296,14 +256,14 @@ public class ModeMenuController implements StateChangeListener {
 
 
     public void editEngines() {
-        gameModel.setMode(GameModel.MODE_ENTER_MOVES);
-        gameModel.triggerStateChange();
+        getGameModel().setMode(GameModel.MODE_ENTER_MOVES);
+        getGameModel().triggerStateChange();
         DialogEngines dlg = new DialogEngines();
         ArrayList<Engine> enginesCopy = new ArrayList<>();
-        for(Engine engine : gameModel.engines) {
+        for(Engine engine : getGameModel().engines) {
             enginesCopy.add(engine);
         }
-        int selectedIdx = gameModel.engines.indexOf(gameModel.activeEngine);
+        int selectedIdx = getGameModel().engines.indexOf(getGameModel().activeEngine);
         if(selectedIdx < 0) {
             selectedIdx = 0;
         }
@@ -312,21 +272,21 @@ public class ModeMenuController implements StateChangeListener {
             //List<Engine> engineList = dlg.engineList
             ArrayList<Engine> engineList = new ArrayList<>(dlg.engineList);
             Engine selectedEngine = dlg.engineList.get(dlg.selectedIndex);
-            gameModel.engines = engineList;
-            gameModel.activeEngine = selectedEngine;
-            gameModel.triggerStateChange();
+            getGameModel().engines = engineList;
+            getGameModel().activeEngine = selectedEngine;
+            getGameModel().triggerStateChange();
         }
     }
 
     public void handleBestMove(String bestmove) {
         //System.out.println("handling bestmove: "+bestmove);
-        int mode = gameModel.getMode();
+        int mode = getGameModel().getMode();
 
         if(mode == GameModel.MODE_ENTER_MOVES) {
             return;
         }
 
-        if(gameModel.lastSeenBestmove.equals(bestmove)) {
+        if(getGameModel().lastSeenBestmove.equals(bestmove)) {
             return;
         }
 
@@ -334,39 +294,39 @@ public class ModeMenuController implements StateChangeListener {
 
         if (mode == GameModel.MODE_PLAY_WHITE || mode == GameModel.MODE_PLAY_BLACK  || mode == GameModel.MODE_PLAYOUT_POSITION) {
 
-            gameModel.lastSeenBestmove = bestmove;
+            getGameModel().lastSeenBestmove = bestmove;
             // todo: catch Exceptions!
             String uci = bestmoveItems[1].split(" ")[0];
             Move m = new Move(uci);
-            Board b = gameModel.getGame().getCurrentNode().getBoard();
+            Board b = getGameModel().getGame().getCurrentNode().getBoard();
             if (b.isLegal(m)) {
                 if(mode == GameModel.MODE_PLAY_WHITE && b.turn == CONSTANTS.BLACK) {
-                    gameModel.getGame().applyMove(m);
-                    gameModel.triggerStateChange();
+                    getGameModel().getGame().applyMove(m);
+                    getGameModel().triggerStateChange();
                 }
                 if(mode == GameModel.MODE_PLAY_BLACK && b.turn == CONSTANTS.WHITE) {
-                    gameModel.getGame().applyMove(m);
-                    gameModel.triggerStateChange();
+                    getGameModel().getGame().applyMove(m);
+                    getGameModel().triggerStateChange();
                 }
                 if(mode == GameModel.MODE_PLAYOUT_POSITION) {
-                    gameModel.getGame().applyMove(m);
-                    gameModel.triggerStateChange();
+                    getGameModel().getGame().applyMove(m);
+                    getGameModel().triggerStateChange();
                 }
             }
         }
         if(mode == GameModel.MODE_GAME_ANALYSIS) {
 
-            gameModel.lastSeenBestmove = bestmove;
+            getGameModel().lastSeenBestmove = bestmove;
 
             // first update information for current node
-            gameModel.childBestPv = gameModel.currentBestPv;
-            gameModel.childBestEval = gameModel.currentBestEval;
-            gameModel.childIsMate = gameModel.currentIsMate;
-            gameModel.childMateInMoves = gameModel.currentMateInMoves;
+            getGameModel().childBestPv = getGameModel().currentBestPv;
+            getGameModel().childBestEval = getGameModel().currentBestEval;
+            getGameModel().childIsMate = getGameModel().currentIsMate;
+            getGameModel().childMateInMoves = getGameModel().currentMateInMoves;
 
-            gameModel.currentBestPv = bestmoveItems[3];
-            gameModel.currentBestEval = Integer.parseInt(bestmoveItems[2]);
-            gameModel.currentIsMate = bestmoveItems[4].equals("true");
+            getGameModel().currentBestPv = bestmoveItems[3];
+            getGameModel().currentBestEval = Integer.parseInt(bestmoveItems[2]);
+            getGameModel().currentIsMate = bestmoveItems[4].equals("true");
             // some engines, like arasan report 0.00 in mate position with nullmove
             // thus check manually
             //if(gameModel.getGame().getCurrentNode().getBoard().isCheckmate()) {
@@ -384,29 +344,31 @@ public class ModeMenuController implements StateChangeListener {
             System.out.println("");
             */
 
-            gameModel.currentMateInMoves = Integer.parseInt(bestmoveItems[5]);
+            getGameModel().currentMateInMoves = Integer.parseInt(bestmoveItems[5]);
 
-            if(!gameModel.getGame().getCurrentNode().isLeaf()) {
+            if(!getGameModel().getGame().getCurrentNode().isLeaf()) {
                 // completely skip that for black or white, if
                 // that was chosen in the analysis
-                boolean turn = gameModel.getGame().getCurrentNode().getBoard().turn;
-                if ((gameModel.getGameAnalysisForPlayer() == GameModel.BOTH_PLAYERS)
-                        || (gameModel.getGameAnalysisForPlayer() == CONSTANTS.IWHITE && turn == CONSTANTS.WHITE)
-                        || (gameModel.getGameAnalysisForPlayer() == CONSTANTS.IBLACK && turn == CONSTANTS.BLACK)) {
+                boolean turn = getGameModel().getGame().getCurrentNode().getBoard().turn;
+                if ((getGameModel().getGameAnalysisForPlayer() == GameModel.BOTH_PLAYERS)
+                        || (getGameModel().getGameAnalysisForPlayer() == CONSTANTS.IWHITE && turn == CONSTANTS.WHITE)
+                        || (getGameModel().getGameAnalysisForPlayer() == CONSTANTS.IBLACK && turn == CONSTANTS.BLACK)) {
 
                     // error, if currentNode is leaf -> nextMove will throw exception
 
-                    if (!gameModel.currentIsMate && !gameModel.childIsMate) {
-                        boolean wMistake = turn == CONSTANTS.WHITE && ((gameModel.currentBestEval - gameModel.childBestEval) >= gameModel.getGameAnalysisThreshold());
-                        boolean bMistake = turn == CONSTANTS.BLACK && ((gameModel.currentBestEval - gameModel.childBestEval) <= -(gameModel.getGameAnalysisThreshold()));
+                    if (!getGameModel().currentIsMate && !getGameModel().childIsMate) {
+                        boolean wMistake = turn == CONSTANTS.WHITE && ((getGameModel().currentBestEval - getGameModel().childBestEval) >= getGameModel()
+                                .getGameAnalysisThreshold());
+                        boolean bMistake = turn == CONSTANTS.BLACK && ((getGameModel().currentBestEval - getGameModel().childBestEval) <= -(getGameModel()
+                                                                                                                                                    .getGameAnalysisThreshold()));
 
                         //System.out.println("threshold: "+gameModel.getGameAnalysisThreshold());
                         //System.out.println("mistake  : " + (gameModel.currentBestEval - gameModel.childBestEval));
 
                         if (wMistake || bMistake) {
                             String uci = bestmoveItems[1].split(" ")[0];
-                            String nextMove = gameModel.getGame().getCurrentNode().getVariation(0).getMove().getUci();
-                            String[] pvMoves = gameModel.currentBestPv.split(" ");
+                            String nextMove = getGameModel().getGame().getCurrentNode().getVariation(0).getMove().getUci();
+                            String[] pvMoves = getGameModel().currentBestPv.split(" ");
                             // if the bestmove returned by the engine is different
                             // than the best suggested pv line, it means that e.g. the
                             // engine took a book move, but did not gave a pv evaluation
@@ -420,124 +382,124 @@ public class ModeMenuController implements StateChangeListener {
                                 NumberFormat nf = NumberFormat.getNumberInstance(Locale.ENGLISH);
                                 DecimalFormat decim = (DecimalFormat) nf;
                                 decim.applyPattern("0.00");
-                                String sCurrentBest = decim.format(gameModel.currentBestEval / 100.0);
-                                String sChildBest = decim.format(gameModel.childBestEval / 100.0);
+                                String sCurrentBest = decim.format(getGameModel().currentBestEval / 100.0);
+                                String sChildBest = decim.format(getGameModel().childBestEval / 100.0);
 
-                                ArrayList<GameNode> vars = gameModel.getGame().getCurrentNode().getVariations();
+                                ArrayList<GameNode> vars = getGameModel().getGame().getCurrentNode().getVariations();
                                 if (vars != null && vars.size() > 1) {
-                                    GameNode child0 = gameModel.getGame().getCurrentNode().getVariation(0);
+                                    GameNode child0 = getGameModel().getGame().getCurrentNode().getVariation(0);
                                     child0.setComment(sChildBest);
-                                    GameNode child1 = gameModel.getGame().getCurrentNode().getVariation(1);
+                                    GameNode child1 = getGameModel().getGame().getCurrentNode().getVariation(1);
                                     child1.setComment(sCurrentBest);
                                 }
                             }
                         }
                     }
 
-                    if (gameModel.currentIsMate && !gameModel.childIsMate) {
+                    if (getGameModel().currentIsMate && !getGameModel().childIsMate) {
                         // the current player missed a mate
-                        String[] pvMoves = gameModel.currentBestPv.split(" ");
+                        String[] pvMoves = getGameModel().currentBestPv.split(" ");
                         addBestPv(pvMoves);
 
                         NumberFormat nf = NumberFormat.getNumberInstance(Locale.ENGLISH);
                         DecimalFormat decim = (DecimalFormat) nf;
                         decim.applyPattern("0.00");
-                        String sChildBest = decim.format(gameModel.childBestEval / 100.0);
+                        String sChildBest = decim.format(getGameModel().childBestEval / 100.0);
 
                         String sCurrentBest = "";
                         if (turn == CONSTANTS.WHITE) {
-                            sCurrentBest = "#" + (Math.abs(gameModel.currentMateInMoves));
+                            sCurrentBest = "#" + (Math.abs(getGameModel().currentMateInMoves));
                         } else {
-                            sCurrentBest = "#-" + (Math.abs(gameModel.currentMateInMoves));
+                            sCurrentBest = "#-" + (Math.abs(getGameModel().currentMateInMoves));
                         }
 
-                        ArrayList<GameNode> vars = gameModel.getGame().getCurrentNode().getVariations();
+                        ArrayList<GameNode> vars = getGameModel().getGame().getCurrentNode().getVariations();
                         if (vars != null && vars.size() > 1) {
-                            GameNode child0 = gameModel.getGame().getCurrentNode().getVariation(0);
+                            GameNode child0 = getGameModel().getGame().getCurrentNode().getVariation(0);
                             child0.setComment(sChildBest);
-                            GameNode child1 = gameModel.getGame().getCurrentNode().getVariation(1);
+                            GameNode child1 = getGameModel().getGame().getCurrentNode().getVariation(1);
                             child1.setComment(sCurrentBest);
                         }
                     }
 
-                    if (!gameModel.currentIsMate && gameModel.childIsMate) {
+                    if (!getGameModel().currentIsMate && getGameModel().childIsMate) {
                         // the current player  moved into a mate
-                        String[] pvMoves = gameModel.currentBestPv.split(" ");
+                        String[] pvMoves = getGameModel().currentBestPv.split(" ");
                         addBestPv(pvMoves);
 
                         NumberFormat nf = NumberFormat.getNumberInstance(Locale.ENGLISH);
                         DecimalFormat decim = (DecimalFormat) nf;
                         decim.applyPattern("0.00");
-                        String sCurrentBest = decim.format(gameModel.currentBestEval / 100.0);
+                        String sCurrentBest = decim.format(getGameModel().currentBestEval / 100.0);
 
                         String sChildBest = "";
                         if (turn == CONSTANTS.WHITE) {
-                            sChildBest = "#-" + (Math.abs(gameModel.childMateInMoves));
+                            sChildBest = "#-" + (Math.abs(getGameModel().childMateInMoves));
                         } else {
-                            sChildBest = "#" + (Math.abs(gameModel.childMateInMoves));
+                            sChildBest = "#" + (Math.abs(getGameModel().childMateInMoves));
                         }
 
-                        ArrayList<GameNode> vars = gameModel.getGame().getCurrentNode().getVariations();
+                        ArrayList<GameNode> vars = getGameModel().getGame().getCurrentNode().getVariations();
                         if (vars != null && vars.size() > 1) {
-                            GameNode child0 = gameModel.getGame().getCurrentNode().getVariation(0);
+                            GameNode child0 = getGameModel().getGame().getCurrentNode().getVariation(0);
                             child0.setComment(sChildBest);
-                            GameNode child1 = gameModel.getGame().getCurrentNode().getVariation(1);
+                            GameNode child1 = getGameModel().getGame().getCurrentNode().getVariation(1);
                             child1.setComment(sCurrentBest);
                         }
                     }
 
-                    if (gameModel.currentIsMate && gameModel.childIsMate) {
+                    if (getGameModel().currentIsMate && getGameModel().childIsMate) {
                         // the current player had a mate, but instead of executing it, he moved into a mate
                         // but we also want to skip the situation where the board position is checkmate
-                        if ((gameModel.currentMateInMoves >= 0 && gameModel.childMateInMoves >= 0) &&
-                                gameModel.childMateInMoves != 0) {
+                        if ((getGameModel().currentMateInMoves >= 0 && getGameModel().childMateInMoves >= 0) &&
+                            getGameModel().childMateInMoves != 0) {
 
-                            String[] pvMoves = gameModel.currentBestPv.split(" ");
+                            String[] pvMoves = getGameModel().currentBestPv.split(" ");
                             addBestPv(pvMoves);
 
                             String sCurrentBest = "";
                             String sChildBest = "";
                             if (turn == CONSTANTS.WHITE) {
-                                sCurrentBest = "#" + (Math.abs(gameModel.currentMateInMoves));
-                                sChildBest = "#-" + (Math.abs(gameModel.childMateInMoves));
+                                sCurrentBest = "#" + (Math.abs(getGameModel().currentMateInMoves));
+                                sChildBest = "#-" + (Math.abs(getGameModel().childMateInMoves));
                             } else {
-                                sCurrentBest = "#-" + (Math.abs(gameModel.currentMateInMoves));
-                                sChildBest = "#" + (Math.abs(gameModel.childMateInMoves));
+                                sCurrentBest = "#-" + (Math.abs(getGameModel().currentMateInMoves));
+                                sChildBest = "#" + (Math.abs(getGameModel().childMateInMoves));
                             }
 
-                            ArrayList<GameNode> vars = gameModel.getGame().getCurrentNode().getVariations();
+                            ArrayList<GameNode> vars = getGameModel().getGame().getCurrentNode().getVariations();
                             if (vars != null && vars.size() > 1) {
-                                GameNode child0 = gameModel.getGame().getCurrentNode().getVariation(0);
+                                GameNode child0 = getGameModel().getGame().getCurrentNode().getVariation(0);
                                 child0.setComment(sChildBest);
-                                GameNode child1 = gameModel.getGame().getCurrentNode().getVariation(1);
+                                GameNode child1 = getGameModel().getGame().getCurrentNode().getVariation(1);
                                 child1.setComment(sCurrentBest);
                             }
                         }
                     }
                 }
             }
-            gameModel.getGame().setTreeWasChanged(true);
-            gameModel.triggerStateChange();
+            getGameModel().getGame().setTreeWasChanged(true);
+            getGameModel().triggerStateChange();
 
         }
     }
 
     @Override
     public void stateChange() {
-        int mode = gameModel.getMode();
-        Board board = gameModel.getGame().getCurrentNode().getBoard();
+        int mode = getGameModel().getMode();
+        Board board = getGameModel().getGame().getCurrentNode().getBoard();
         boolean turn = board.turn;
 
         boolean isCheckmate = board.isCheckmate();
         boolean isStalemate = board.isStalemate();
-        boolean isThreefoldRepetition = gameModel.getGame().isThreefoldRepetition();
+        boolean isThreefoldRepetition = getGameModel().getGame().isThreefoldRepetition();
 
         boolean abort = false;
 
         // if we change from e.g. play white to enter moves, the state change would trigger
         // the notification again in enter moves mode after the state change. thus,
         // also check if
-        if((isCheckmate || isStalemate || isThreefoldRepetition) && !gameModel.doNotNotifyAboutResult) {
+        if((isCheckmate || isStalemate || isThreefoldRepetition) && !getGameModel().doNotNotifyAboutResult) {
 
             String message = "";
             if(isCheckmate) {
@@ -564,11 +526,11 @@ public class ModeMenuController implements StateChangeListener {
             // the notification again in enter moves mode after the state change. thus
             // set a marker here, that for the next state change we ignore
             // the result notification
-            gameModel.doNotNotifyAboutResult = true;
-            gameModel.setMode(GameModel.MODE_ENTER_MOVES);
-            gameModel.triggerStateChange();
+            getGameModel().doNotNotifyAboutResult = true;
+            getGameModel().setMode(GameModel.MODE_ENTER_MOVES);
+            getGameModel().triggerStateChange();
         } else {
-            gameModel.doNotNotifyAboutResult = false;
+            getGameModel().doNotNotifyAboutResult = false;
             if (mode == GameModel.MODE_ANALYSIS) {
                 handleStateChangeAnalysis();
             }
@@ -579,7 +541,7 @@ public class ModeMenuController implements StateChangeListener {
                 handleStateChangePlayoutPosition();
             }
             if ((mode == GameModel.MODE_PLAY_WHITE || mode == GameModel.MODE_PLAY_BLACK)
-                    && turn != gameModel.getHumanPlayerColor()) {
+                    && turn != getGameModel().getHumanPlayerColor()) {
                 handleStateChangePlayWhiteOrBlack();
             }
         }

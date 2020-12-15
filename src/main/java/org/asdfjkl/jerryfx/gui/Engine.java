@@ -18,6 +18,7 @@
 
 package org.asdfjkl.jerryfx.gui;
 
+import java.io.File;
 import java.util.ArrayList;
 
 public class Engine {
@@ -33,6 +34,7 @@ public class Engine {
     public void setName(String name) { this.name = name; }
 
     public String getPath() { return path; }
+    public File getFile() { return new File(path); }
     public void setPath(String path) { this.path = path; }
 
     public boolean isInternal() { return isInternal; }

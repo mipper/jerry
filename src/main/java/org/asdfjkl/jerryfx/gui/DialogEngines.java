@@ -191,11 +191,7 @@ public class DialogEngines {
     private void btnRemoveEngineClicked() {
         Engine selectedEngine = engineListView.getSelectionModel().getSelectedItem();
         engineList.remove(selectedEngine);
-        if(engineList.size() > 9) {
-            btnAdd.setDisable(true);
-        } else {
-            btnAdd.setDisable(false);
-        }
+        btnAdd.setDisable(engineList.size() > 9);
     }
 
     private void btnResetParametersClicked() {
@@ -252,8 +248,8 @@ public class DialogEngines {
             Engine engine = new Engine();
             engine.setPath(file.getAbsolutePath());
 
-            try (UciEngineProcess engineProcess = new UciEngineProcess(file)) {
-
+            try (UciEngineProcess engineProcess = new UciEngineProcess(null)) {
+                engineProcess.start(file);
                 List<String> reply = engineProcess.sendSynchronous("uci");
                 for(String line: reply) {
                     if (line.startsWith("id name")) {
@@ -275,21 +271,14 @@ public class DialogEngines {
             if(engine.getName() != null && !engine.getName().isEmpty()) {
                 engineList.add(engine);
                 int idx = engineList.indexOf(engine);
-                Platform.runLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        engineListView.scrollTo(idx);
-                        engineListView.getSelectionModel().select(idx);
-                    }
+                Platform.runLater(() -> {
+                    engineListView.scrollTo(idx);
+                    engineListView.getSelectionModel().select(idx);
                 });
             }
         }
 
-        if(engineList.size() > 9) {
-            btnAdd.setDisable(true);
-        } else {
-            btnAdd.setDisable(false);
-        }
+        btnAdd.setDisable(engineList.size() > 9);
     }
 
 }

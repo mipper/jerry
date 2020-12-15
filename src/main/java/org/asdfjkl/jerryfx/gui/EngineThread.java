@@ -21,6 +21,8 @@ package org.asdfjkl.jerryfx.gui;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import org.asdfjkl.jerryfx.engine.UciEngineProcess;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.List;
@@ -30,6 +32,7 @@ import java.util.regex.Pattern;
 
 public class EngineThread extends Thread {
 
+    private static final Logger _logger = LoggerFactory.getLogger(EngineThread.class);
     static final Pattern REG_MOVES = Pattern.compile("\\s[a-z]\\d[a-z]\\d([a-z]{0,1})");
     static final Pattern REG_BESTMOVE = Pattern.compile("bestmove\\s([a-z]\\d[a-z]\\d[a-z]{0,1})");
     static final Pattern REG_STRENGTH = Pattern.compile("Skill Level value \\d+");
@@ -37,7 +40,7 @@ public class EngineThread extends Thread {
     private final StringProperty stringProperty;
 
     private final BlockingQueue<String> cmdQueue;
-    UciEngineProcess engineProcess;
+    private UciEngineProcess engineProcess;
     private long lastInfoUpdate = System.currentTimeMillis();
     private long lastBestmoveUpdate = System.currentTimeMillis();
 
@@ -46,16 +49,13 @@ public class EngineThread extends Thread {
     private boolean readyok = false;
     private boolean inGoInfinite = false;
 
-    public EngineThread(BlockingQueue<String> cmdQueue) {
+    public EngineThread(final UciEngineProcess engineProcess, final File path) {
+        this.engineProcess = engineProcess;
+        this.cmdQueue = engineProcess.getCommandQueue();
         this.engineInfo = new EngineInfo();
-        this.cmdQueue = cmdQueue;
+//        this.cmdQueue = cmdQueue;
         stringProperty = new SimpleStringProperty(this, "String", "");
         setDaemon(true);
-    }
-
-    // What on earth is this for?
-    public String getString() {
-        return stringProperty.get();
     }
 
     public StringProperty stringProperty() {
@@ -64,25 +64,23 @@ public class EngineThread extends Thread {
 
     @Override
     public void run() {
+//        if(engineProcess == null) { // engine not running
+//            if(!cmdQueue.isEmpty()) {
+//            }
+//        }
+        startEngine();
         while (true) {
-            if(engineProcess == null) { // engine not running
-                if(!cmdQueue.isEmpty()) {
-                    startEngine();
-                }
+            try {
+                processEngineResponse();
+                sendUpdate();
+                serviceQueue();
             }
-            else { // process is alive -> engine is running
-                try {
-                    processEngineResponse();
-                    sendUpdate();
-                    serviceQueue();
-                }
-                catch (IOException e) {
-                    e.printStackTrace();
-                    return;
-                }
-                catch (InterruptedException e) {
-                    return;
-                }
+            catch (IOException e) {
+                e.printStackTrace();
+                return;
+            }
+            catch (InterruptedException e) {
+                return;
             }
             if (this.isInterrupted()) {
                 if(engineProcess != null) {
@@ -111,24 +109,24 @@ public class EngineThread extends Thread {
     }
 
     private void startEngine() {
-        try {
-            String cmd = cmdQueue.take();
-            if (cmd.startsWith("start")) {
+//        try {
+//            String cmd = cmdQueue.take();
+//            if (cmd.startsWith("start")) {
                 // reset engine info if we start
                 engineInfo.clear();
-                File engineCmd = new File(cmd.substring(6));
-                try {
-                    this.engineProcess = new UciEngineProcess(engineCmd);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                this.engineInfo.strength = -1;
-            }
-        }
-        catch (InterruptedException e) {
+//                File engineCmd = new File(cmd.substring(6));
+//                try {
+//                    engineProcess.start(engineCmd);
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+                engineInfo.strength = -1;
+//            }
+//        }
+//        catch (InterruptedException e) {
             // Propogate the interrupt
-            interrupt();
-        }
+//            interrupt();
+//        }
     }
 
     private void initialise()
@@ -139,18 +137,19 @@ public class EngineThread extends Thread {
         // 'uci' without waiting for isready
         // TODO: Doesn't peeking here lead us to an infinite loop as the non-uci command will never be taken off given
         //  we don't have a 'ready' engine?
-        String cmd = cmdQueue.peek();
-        if(cmd != null && cmd.equals("uci")) {
+//        String cmd = cmdQueue.peek();
+//        if(cmd != null && cmd.equals("uci")) {
             cmdQueue.take();
             engineProcess.sendSynchronous("uci");
             engineProcess.sendSynchronous("isready");
             readyok = true;
-        }
+//        }
     }
 
     private void processCommand()
             throws InterruptedException, IOException {
         String cmd = cmdQueue.take();
+        _logger.debug("Processing: {}", cmd);
         // if the command is "position fen moves", first count the
         // numbers of moves so far to generate move numbers in engine info
         // todo: needed???
@@ -210,11 +209,10 @@ public class EngineThread extends Thread {
         }
     }
 
-    private List<String> stopThinking()
+    private void stopThinking()
             throws IOException {
         inGoInfinite = false;
         engineProcess.send("stop");
-        return engineProcess.receive();
     }
 
     private void processEngineResponse()
@@ -222,7 +220,7 @@ public class EngineThread extends Thread {
         List<String> response = engineProcess.receive();
         for(String line: response) {
             if (!line.isEmpty()) {
-                //System.out.println(line);
+                _logger.debug("Received: {}", line);
                 //lastString = line;
                 // todo: instead of directly setting bestmove,
                 // try updating engine info

@@ -26,6 +26,7 @@ import jfxtras.styles.jmetro.JMetro;
 import javafx.scene.image.ImageView;
 import org.asdfjkl.jerryfx.lib.*;
 import java.awt.*;
+import java.io.IOException;
 import java.util.ArrayList;
 
 
@@ -324,10 +325,10 @@ public class App extends Application implements StateChangeListener {
         gameModel.addListener(moveView);
         gameModel.addListener(this);
 
-        itmOpenFile.setOnAction(actionEvent -> { gameMenuController.handleOpenGame(); } );
-        btnOpen.setOnAction(actionEvent -> { gameMenuController.handleOpenGame(); } );
+        itmOpenFile.setOnAction(actionEvent -> gameMenuController.handleOpenGame());
+        btnOpen.setOnAction(actionEvent -> gameMenuController.handleOpenGame());
 
-        itmSavePositionAsImage.setOnAction(actionEvent -> { gameMenuController.handleSaveBoardPicture(chessboard);});
+        itmSavePositionAsImage.setOnAction(actionEvent -> gameMenuController.handleSaveBoardPicture(chessboard));
 
         btnMoveNext.setOnAction(event -> moveView.goForward());
         btnMoveBegin.setOnAction(event -> moveView.seekToRoot());
@@ -345,17 +346,11 @@ public class App extends Application implements StateChangeListener {
         gameModel.addListener(modeMenuController);
         modeMenuController.activateEnterMovesMode();
 
-        itmSaveCurrentGameAs.setOnAction(e -> {
-           gameMenuController.handleSaveCurrentGame();
-        });
+        itmSaveCurrentGameAs.setOnAction(e -> gameMenuController.handleSaveCurrentGame());
 
-        itmPrintGame.setOnAction(actionEvent -> {
-            gameMenuController.handlePrintGame(stage);
-        });
+        itmPrintGame.setOnAction(actionEvent -> gameMenuController.handlePrintGame(stage));
 
-        itmPrintPosition.setOnAction(actionEvent -> {
-            gameMenuController.handlePrintPosition(stage);
-        });
+        itmPrintPosition.setOnAction(actionEvent -> gameMenuController.handlePrintPosition(stage));
 
         itmPlayAsWhite.setOnAction(actionEvent -> {
             if(itmPlayAsWhite.isSelected()) {
@@ -363,7 +358,12 @@ public class App extends Application implements StateChangeListener {
                     itmPlayAsWhite.setSelected(true);
                     tglEngineOnOff.setSelected(true);
                     tglEngineOnOff.setText("On");
-                    modeMenuController.activatePlayWhiteMode();
+                    try {
+                        engineController.activatePlayWhiteMode(modeMenuController.getGameModel());
+                    }
+                    catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         });
@@ -374,7 +374,7 @@ public class App extends Application implements StateChangeListener {
                     itmPlayAsBlack.setSelected(true);
                     tglEngineOnOff.setSelected(true);
                     tglEngineOnOff.setText("On");
-                    modeMenuController.activatePlayBlackMode();
+                    engineController.activatePlayBlackMode(modeMenuController.getGameModel());
                 }
             }
         });
@@ -413,9 +413,7 @@ public class App extends Application implements StateChangeListener {
             modeMenuController.activateEnterMovesMode();
         });
 
-        itmFullGameAnalysis.setOnAction(actionEvent -> {
-            handleFullGameAnalysis();
-        });
+        itmFullGameAnalysis.setOnAction(actionEvent -> handleFullGameAnalysis());
 
         tglEngineOnOff.setOnAction(actionEvent -> {
             if(tglEngineOnOff.isSelected()) {
@@ -438,30 +436,20 @@ public class App extends Application implements StateChangeListener {
             }
         });
 
-        itmNew.setOnAction(e -> {
-            handleNewGame();
-        });
+        itmNew.setOnAction(e -> handleNewGame());
 
-        itmQuit.setOnAction(event -> {
-            onExit(stage);
-        });
+        itmQuit.setOnAction(event -> onExit(stage));
 
-        itmEditGame.setOnAction(e -> {
-            editMenuController.editGameData();
-        });
+        itmEditGame.setOnAction(e -> editMenuController.editGameData());
 
-        btnEditGameData.setOnAction(e -> {
-            editMenuController.editGameData();
-        });
+        btnEditGameData.setOnAction(e -> editMenuController.editGameData());
 
         itmEnterPosition.setOnAction(e -> {
             double height = Math.max(stage.getHeight() * 0.6, 520);
             editMenuController.enterPosition(height, chessboard.boardStyle);
         });
 
-        itmFullscreen.setOnAction(e -> {
-            stage.setFullScreen(true);
-        });
+        itmFullscreen.setOnAction(e -> stage.setFullScreen(true));
 
         itmAppearance.setOnAction(e -> {
             DialogAppearance dlg = new DialogAppearance();
@@ -476,21 +464,13 @@ public class App extends Application implements StateChangeListener {
             }
         });
 
-        itmEngines.setOnAction(e -> {
-            modeMenuController.editEngines();
-        });
+        itmEngines.setOnAction(e -> modeMenuController.editEngines());
 
-        btnSelectEngine.setOnAction(e -> {
-            modeMenuController.editEngines();
-        });
+        btnSelectEngine.setOnAction(e -> modeMenuController.editEngines());
 
-        itmCopyGame.setOnAction(e -> {
-            editMenuController.copyGame();
-        });
+        itmCopyGame.setOnAction(e -> editMenuController.copyGame());
 
-        itmCopyPosition.setOnAction(e -> {
-            editMenuController.copyPosition();
-        });
+        itmCopyPosition.setOnAction(e -> editMenuController.copyPosition());
 
         itmPaste.setOnAction(e -> {
             String pasteString = Clipboard.getSystemClipboard().getString().trim();
@@ -521,25 +501,15 @@ public class App extends Application implements StateChangeListener {
             gameModel.triggerStateChange();
         });
 
-        itmBrowseDatabase.setOnAction(e -> {
-            gameMenuController.handleBrowseDatabase();
-        });
+        itmBrowseDatabase.setOnAction(e -> gameMenuController.handleBrowseDatabase());
 
-        itmNextGame.setOnAction(e -> {
-            gameMenuController.handleNextGame();
-        });
+        itmNextGame.setOnAction(e -> gameMenuController.handleNextGame());
 
-        itmPreviousGame.setOnAction(e -> {
-            gameMenuController.handlePrevGame();
-        });
+        itmPreviousGame.setOnAction(e -> gameMenuController.handlePrevGame());
 
-        itmAbout.setOnAction(event -> {
-            DialogAbout.show();
-        });
+        itmAbout.setOnAction(event -> DialogAbout.show());
 
-        itmJerryHomepage.setOnAction(event -> {
-            getHostServices().showDocument("https://github.com/asdfjkl/jerry");
-        });
+        itmJerryHomepage.setOnAction(event -> getHostServices().showDocument("https://github.com/asdfjkl/jerry"));
 
         stage.setOnCloseRequest(event -> {
             event.consume();
@@ -547,34 +517,22 @@ public class App extends Application implements StateChangeListener {
         });
 
         // buttons
-        btnNew.setOnAction(e -> {
-            handleNewGame();
-        });
+        btnNew.setOnAction(e -> handleNewGame());
 
-        btnOpen.setOnAction(e -> {
-            gameMenuController.handleOpenGame();
-        });
+        btnOpen.setOnAction(e -> gameMenuController.handleOpenGame());
 
-        btnSaveAs.setOnAction(e -> {
-            gameMenuController.handleSaveCurrentGame();
-        });
+        btnSaveAs.setOnAction(e -> gameMenuController.handleSaveCurrentGame());
 
-        btnPrint.setOnAction(e -> {
-            gameMenuController.handlePrintGame(stage);
-        });
+        btnPrint.setOnAction(e -> gameMenuController.handlePrintGame(stage));
 
         btnFlipBoard.setOnAction(e -> {
             gameModel.setFlipBoard(!gameModel.getFlipBoard());
             gameModel.triggerStateChange();
         });
 
-        btnCopyGame.setOnAction(e -> {
-            editMenuController.copyGame();
-        });
+        btnCopyGame.setOnAction(e -> editMenuController.copyGame());
 
-        btnCopyPosition.setOnAction(e -> {
-            editMenuController.copyPosition();
-        });
+        btnCopyPosition.setOnAction(e -> editMenuController.copyPosition());
 
         btnPaste.setOnAction(e -> {
             String pasteString = Clipboard.getSystemClipboard().getString().trim();
@@ -586,25 +544,15 @@ public class App extends Application implements StateChangeListener {
             editMenuController.enterPosition(height, chessboard.boardStyle);
         });
 
-        btnFullAnalysis.setOnAction(e -> {
-            handleFullGameAnalysis();
-        });
+        btnFullAnalysis.setOnAction(e -> handleFullGameAnalysis());
 
-        btnBrowseGames.setOnAction(e -> {
-            gameMenuController.handleBrowseDatabase();
-        });
+        btnBrowseGames.setOnAction(e -> gameMenuController.handleBrowseDatabase());
 
-        btnPrevGame.setOnAction(e -> {
-            gameMenuController.handlePrevGame();
-        });
+        btnPrevGame.setOnAction(e -> gameMenuController.handlePrevGame());
 
-        btnNextGame.setOnAction(e -> {
-            gameMenuController.handleNextGame();
-        });
+        btnNextGame.setOnAction(e -> gameMenuController.handleNextGame());
 
-        btnAbout.setOnAction(e -> {
-            DialogAbout.show();
-        });
+        btnAbout.setOnAction(e -> DialogAbout.show());
 
 
         Scene scene = new Scene(spMain);
@@ -645,7 +593,12 @@ public class App extends Application implements StateChangeListener {
                     itmPlayAsWhite.setSelected(true);
                     tglEngineOnOff.setSelected(true);
                     tglEngineOnOff.setText("On");
-                    modeMenuController.activatePlayWhiteMode();
+                    try {
+                        engineController.activatePlayWhiteMode(modeMenuController.getGameModel());
+                    }
+                    catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
             if(event.getCode() == KeyCode.B) {
@@ -653,7 +606,7 @@ public class App extends Application implements StateChangeListener {
                     itmPlayAsBlack.setSelected(true);
                     tglEngineOnOff.setSelected(true);
                     tglEngineOnOff.setText("On");
-                    modeMenuController.activatePlayBlackMode();
+                    engineController.activatePlayBlackMode(modeMenuController.getGameModel());
                 }
             }
             if(event.getCode() == KeyCode.M || event.getCode() == KeyCode.ESCAPE) {
@@ -795,14 +748,21 @@ public class App extends Application implements StateChangeListener {
             } else {
                 gameModel.setFlipBoard(true);
             }
-            if(dlg.rbComputer.isSelected()) {
-                if(dlg.rbWhite.isSelected()) {
-                    modeMenuController.activatePlayWhiteMode();
-                } else {
-                    modeMenuController.activatePlayBlackMode();
+            try {
+                if (dlg.rbComputer.isSelected()) {
+                    if (dlg.rbWhite.isSelected()) {
+                        engineController.activatePlayWhiteMode(modeMenuController.getGameModel());
+                    }
+                    else {
+                        engineController.activatePlayBlackMode(modeMenuController.getGameModel());
+                    }
                 }
-            } else {
-                modeMenuController.activateEnterMovesMode();
+                else {
+                    modeMenuController.activateEnterMovesMode();
+                }
+            }
+            catch (IOException e) {
+                throw new RuntimeException(e);
             }
         }
     }

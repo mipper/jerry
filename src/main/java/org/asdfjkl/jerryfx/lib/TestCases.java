@@ -711,7 +711,6 @@ public class TestCases {
             file = new File(book.getFile());
             pg1.loadBook(file);
         }
-        System.out.println(pg1.readFile);
         try {
             PolyglotEntry e = pg1.getEntryFromOffset(0x62c20);
             System.out.println(e.uci);

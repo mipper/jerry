@@ -19,6 +19,7 @@
 package org.asdfjkl.jerryfx.lib;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -27,22 +28,28 @@ import java.util.Arrays;
 public class Polyglot {
 
     byte[] book;
-    public boolean readFile = false;
     final char[] promotionPieces = { ' ', 'n', 'b', 'r', 'q'};
 
     public void loadBook(File file) {
 
         OptimizedRandomAccessFile raf = null;
+        //File file = new File(filename);
         try {
-            //File file = new File(filename);
-            long fileLength = file.length();
             raf = new OptimizedRandomAccessFile(file, "r");
+            long fileLength = file.length();
             book = new byte[(int) fileLength];
-            raf.readFully(book, 0, (int) fileLength);
-            readFile = true;
-        } catch (IOException e) {
+            try {
+                raf.readFully(book, 0, (int) fileLength);
+            }
+            catch (IOException e) {
+                System.err.println("Error reading book.\n" + e);
+                book = null;
+            }
+        }
+        catch (FileNotFoundException e) {
             e.printStackTrace();
-        } finally {
+        }
+        finally {
             if (raf != null) {
                 try {
                     raf.close();
@@ -75,13 +82,13 @@ public class Polyglot {
         int weight = ByteBuffer.wrap(bWeight).getShort();
         int learn = ByteBuffer.wrap(bLearn).getInt();
 
-        int from = 0;
-        int fromRow = 0;
-        int fromFile = 0;
-        int to = 0;
-        int toRow = 0;
-        int toFile = 0;
-        int promotion = 0;
+        int from;
+        int fromRow;
+        int fromFile;
+        int to;
+        int toRow;
+        int toFile;
+        int promotion;
 
         from      = (move>>6)&077;
         fromRow   = (from>>3)&0x7;
@@ -133,9 +140,9 @@ public class Polyglot {
 
     public ArrayList<String> findMoves(long zobrist) {
 
-        ArrayList<String> bookMoves = new ArrayList<String>();
+        ArrayList<String> bookMoves = new ArrayList<>();
 
-        if(readFile) {
+        if(bookLoaded()) {
 
             int low = 0;
             int high = Integer.divideUnsigned(book.length, 16);
@@ -178,7 +185,7 @@ public class Polyglot {
 
     public boolean inBook(long zobrist) {
 
-        if(!readFile) {
+        if(!bookLoaded()) {
             return false;
         }
 
@@ -203,14 +210,14 @@ public class Polyglot {
         // where a possible entry is.
         if(Integer.compareUnsigned(offset, size) < 0) {
             PolyglotEntry e = getEntryFromOffset(offset*16);
-            if(Long.compareUnsigned(e.key, zobrist) == 0) {
-                return true;
-            } else {
-                return false;
-            }
+            return Long.compareUnsigned(e.key, zobrist) == 0;
         }
 
         return false;
+    }
+
+    private boolean bookLoaded() {
+        return book != null;
     }
 
 }
