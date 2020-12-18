@@ -24,10 +24,11 @@ import javafx.stage.Stage;
 import javafx.util.Pair;
 import jfxtras.styles.jmetro.JMetro;
 import javafx.scene.image.ImageView;
+import org.asdfjkl.jerryfx.engine.UciEngineProcess;
 import org.asdfjkl.jerryfx.lib.*;
 import java.awt.*;
-import java.io.IOException;
 import java.util.ArrayList;
+import org.asdfjkl.jerryfx.engine.Engine;
 
 
 /**
@@ -38,6 +39,7 @@ public class App extends Application implements StateChangeListener {
     Text txtGameData;
     GameModel gameModel;
     EngineOutputView engineOutputView;
+    private Engine _engine;
     EngineController engineController;
 
     ToggleButton tglEngineOnOff;
@@ -287,7 +289,7 @@ public class App extends Application implements StateChangeListener {
         spChessboardMoves.getItems().addAll(chessboard, vbGameDataMovesNavigation);
         spChessboardMoves.setMaxHeight(Double.MAX_VALUE);
 
-        // Buttons for Engine On/Off and TextFlow for Engine Output
+        // Buttons for EngineDefinition On/Off and TextFlow for EngineDefinition Output
         tglEngineOnOff = new ToggleButton("Off");
         Label lblMultiPV = new Label("Lines:");
         ComboBox<Integer> cmbMultiPV = new ComboBox<Integer>();
@@ -308,7 +310,7 @@ public class App extends Application implements StateChangeListener {
         vbBottom.getChildren().addAll(hbEngineControl, txtEngineOut);
         vbBottom.setMinHeight(10);
 
-        // put everything excl. the bottom Engine part into one VBox
+        // put everything excl. the bottom EngineDefinition part into one VBox
         VBox vbMainUpperPart = new VBox();
         vbMainUpperPart.getChildren().addAll(mnuBar, tbMainWindow, spChessboardMoves);
         vbMainUpperPart.setVgrow(spChessboardMoves, Priority.ALWAYS);
@@ -337,14 +339,15 @@ public class App extends Application implements StateChangeListener {
 
         // connect mode controller
         engineOutputView = new EngineOutputView(txtEngineOut);
-        modeMenuController = new ModeMenuController(gameModel, engineOutputView);
-        engineController = new EngineController(modeMenuController);
+        modeMenuController = new ModeMenuController(_engine, gameModel, engineOutputView);
+        _engine = new Engine(new UciEngineProcess(modeMenuController), gameModel);
+        engineController = new EngineController(_engine);
         modeMenuController.setEngineController(engineController);
 
         EditMenuController editMenuController = new EditMenuController(gameModel);
 
         gameModel.addListener(modeMenuController);
-        modeMenuController.activateEnterMovesMode();
+        _engine.activateEnterMovesMode();
 
         itmSaveCurrentGameAs.setOnAction(e -> gameMenuController.handleSaveCurrentGame());
 
@@ -358,12 +361,7 @@ public class App extends Application implements StateChangeListener {
                     itmPlayAsWhite.setSelected(true);
                     tglEngineOnOff.setSelected(true);
                     tglEngineOnOff.setText("On");
-                    try {
-                        engineController.activatePlayWhiteMode(modeMenuController.getGameModel());
-                    }
-                    catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    engineController.activatePlayWhiteMode();
                 }
             }
         });
@@ -374,7 +372,7 @@ public class App extends Application implements StateChangeListener {
                     itmPlayAsBlack.setSelected(true);
                     tglEngineOnOff.setSelected(true);
                     tglEngineOnOff.setText("On");
-                    engineController.activatePlayBlackMode(modeMenuController.getGameModel());
+                    engineController.activatePlayBlackMode();
                 }
             }
         });
@@ -410,7 +408,7 @@ public class App extends Application implements StateChangeListener {
         itmEnterMoves.setOnAction(actionEvent -> {
             tglEngineOnOff.setSelected(false);
             tglEngineOnOff.setText("Off");
-            modeMenuController.activateEnterMovesMode();
+            _engine.activateEnterMovesMode();
         });
 
         itmFullGameAnalysis.setOnAction(actionEvent -> handleFullGameAnalysis());
@@ -423,16 +421,14 @@ public class App extends Application implements StateChangeListener {
             } else {
                 itmEnterMoves.setSelected(true);
                 tglEngineOnOff.setText("Off");
-                modeMenuController.activateEnterMovesMode();
+                _engine.activateEnterMovesMode();
             }
         });
 
         cmbMultiPV.setOnAction(actionEvent -> {
             int multiPv = cmbMultiPV.getValue();
             if(multiPv != gameModel.getMultiPv()) {
-                gameModel.setMultiPv(multiPv);
-                engineController.sendCommand("setoption name MultiPV value "+multiPv);
-                gameModel.triggerStateChange();
+                engineController.setMultiPv(multiPv);
             }
         });
 
@@ -593,12 +589,7 @@ public class App extends Application implements StateChangeListener {
                     itmPlayAsWhite.setSelected(true);
                     tglEngineOnOff.setSelected(true);
                     tglEngineOnOff.setText("On");
-                    try {
-                        engineController.activatePlayWhiteMode(modeMenuController.getGameModel());
-                    }
-                    catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    engineController.activatePlayWhiteMode();
                 }
             }
             if(event.getCode() == KeyCode.B) {
@@ -606,14 +597,14 @@ public class App extends Application implements StateChangeListener {
                     itmPlayAsBlack.setSelected(true);
                     tglEngineOnOff.setSelected(true);
                     tglEngineOnOff.setText("On");
-                    engineController.activatePlayBlackMode(modeMenuController.getGameModel());
+                    engineController.activatePlayBlackMode();
                 }
             }
             if(event.getCode() == KeyCode.M || event.getCode() == KeyCode.ESCAPE) {
                 // enter moves mode
                 tglEngineOnOff.setSelected(false);
                 tglEngineOnOff.setText("Off");
-                modeMenuController.activateEnterMovesMode();
+                _engine.activateEnterMovesMode();
             }
             if(event.getCode() == KeyCode.F11) {
                 stage.setFullScreen(true);
@@ -720,7 +711,7 @@ public class App extends Application implements StateChangeListener {
         gameModel.saveBoardStyle();
         gameModel.saveEngines();
 
-        engineController.sendCommand("quit");
+        engineController.quit();
         ArrayList<Task> runningTasks = gameModel.getPgnDatabase().getRunningTasks();
         for (Task task : runningTasks) {
             task.cancel();
@@ -731,9 +722,9 @@ public class App extends Application implements StateChangeListener {
 
     private void handleNewGame() {
         DialogNewGame dlg = new DialogNewGame();
-        boolean accepted = dlg.show(gameModel.activeEngine.isInternal(),
-                gameModel.getEngineStrength(),
-                gameModel.getComputerThinkTimeSecs());
+        boolean accepted = dlg.show(gameModel.getActiveEngine().isInternal(),
+                                    gameModel.getEngineStrength(),
+                                    gameModel.getComputerThinkTimeSecs());
         if(accepted) {
             gameModel.wasSaved = false;
             gameModel.currentPgnDatabaseIdx = -1;
@@ -743,26 +734,17 @@ public class App extends Application implements StateChangeListener {
             g.getRootNode().setBoard(new Board(true));
             gameModel.setGame(g);
             gameModel.getGame().setTreeWasChanged(true);
-            if(dlg.rbWhite.isSelected()) {
-                gameModel.setFlipBoard(false);
-            } else {
-                gameModel.setFlipBoard(true);
-            }
-            try {
-                if (dlg.rbComputer.isSelected()) {
-                    if (dlg.rbWhite.isSelected()) {
-                        engineController.activatePlayWhiteMode(modeMenuController.getGameModel());
-                    }
-                    else {
-                        engineController.activatePlayBlackMode(modeMenuController.getGameModel());
-                    }
+            gameModel.setFlipBoard(!dlg.rbWhite.isSelected());
+            if (dlg.rbComputer.isSelected()) {
+                if (dlg.rbWhite.isSelected()) {
+                    engineController.activatePlayWhiteMode();
                 }
                 else {
-                    modeMenuController.activateEnterMovesMode();
+                    engineController.activatePlayBlackMode();
                 }
             }
-            catch (IOException e) {
-                throw new RuntimeException(e);
+            else {
+                _engine.activateEnterMovesMode();
             }
         }
     }

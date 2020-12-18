@@ -47,8 +47,8 @@ public class GameModel {
     private int engineStrength = 20;
     private int engineThinkTimeSecs = 3;
 
-    ArrayList<Engine> engines = new ArrayList<>();
-    Engine activeEngine = null;
+    ArrayList<EngineDefinition> _engineDefinitions = new ArrayList<>();
+    private EngineDefinition _activeEngineDefinition = null;
 
     private int gameAnalysisForPlayer = BOTH_PLAYERS;
     private int gameAnalysisThreshold = 500; // centipawns
@@ -101,14 +101,14 @@ public class GameModel {
         String stockfishPath = getStockfishPath();
         String bookPath = getBookPath();
 
-        Engine stockfish = new Engine();
+        EngineDefinition stockfish = new EngineDefinition();
         stockfish.setName("Stockfish (Internal)");
         if(stockfishPath != null) {
             stockfish.setPath(stockfishPath);
         }
         stockfish.setInternal(true);
-        engines.add(stockfish);
-        activeEngine = stockfish;
+        _engineDefinitions.add(stockfish);
+        setActiveEngine(stockfish);
 
         book = new Polyglot();
         if(bookPath != null) {
@@ -307,12 +307,12 @@ public class GameModel {
     public void saveEngines() {
 
         prefs = Preferences.userRoot().node(this.getClass().getName());
-        for(int i=1;i<engines.size();i++) {
-            Engine engine = engines.get(i);
-            String engineString = engine.writeToString();
+        for(int i = 1; i < _engineDefinitions.size(); i++) {
+            EngineDefinition engineDefinition = _engineDefinitions.get(i);
+            String engineString = engineDefinition.writeToString();
             prefs.put("ENGINE"+i, engineString);
         }
-        prefs.putInt("ACTIVE_ENGINE_IDX", engines.indexOf(activeEngine));
+        prefs.putInt("ACTIVE_ENGINE_IDX", _engineDefinitions.indexOf(getActiveEngine()));
     }
 
     public void restoreBoardStyle() {
@@ -340,16 +340,16 @@ public class GameModel {
             for(int i=1;i<99;i++) {
                 String engineString = prefs.get("ENGINE"+i, "");
                 if(!engineString.isEmpty()) {
-                    Engine engine = new Engine();
-                    engine.restoreFromString(engineString);
-                    engines.add(engine);
+                    EngineDefinition engineDefinition = new EngineDefinition();
+                    engineDefinition.restoreFromString(engineString);
+                    _engineDefinitions.add(engineDefinition);
                 }
             }
             int activeIdx = prefs.getInt("ACTIVE_ENGINE_IDX", 0);
-            if(activeIdx < engines.size()) {
-                activeEngine = engines.get(activeIdx);
+            if(activeIdx < _engineDefinitions.size()) {
+                setActiveEngine(_engineDefinitions.get(activeIdx));
             } else {
-                activeEngine = engines.get(0);
+                setActiveEngine(_engineDefinitions.get(0));
             }
         }
     }
@@ -413,6 +413,15 @@ public class GameModel {
             }
         }
     }
+
+    public EngineDefinition getActiveEngine() {
+        return _activeEngineDefinition;
+    }
+
+    public void setActiveEngine(EngineDefinition activeEngineDefinition) {
+        this._activeEngineDefinition = activeEngineDefinition;
+    }
+
 }
 
 

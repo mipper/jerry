@@ -18,77 +18,38 @@
 
 package org.asdfjkl.jerryfx.gui;
 
-import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
-import org.asdfjkl.jerryfx.engine.UciEngineProcess;
-import org.asdfjkl.jerryfx.lib.CONSTANTS;
-
-import java.io.IOException;
+import org.asdfjkl.jerryfx.engine.Engine;
 
 public class EngineController {
 
-    final UciEngineProcess _engineProcess;
+    private final Engine _engine;
 
-    public EngineController(ModeMenuController modeMenuController) {
-
-        _engineProcess = new UciEngineProcess(modeMenuController);
+    public EngineController(Engine engine) {
+        _engine = engine;
     }
 
     public void sendCommand(String cmd) {
-//            _engineProcess.send(cmd);
-            _engineProcess.acceptCommand(cmd);
-//            cmdQueue.put(cmd);
+        _engine.sendCommand(cmd);
     }
 
-    public void activatePlayWhiteMode(final GameModel gameModel)
-            throws IOException {
-        gameModel.lastSeenBestmove = "";
-        // first change gamestate and reset engine
-//        sendCommand("stop");
-//        sendCommand("quit");
-//        String cmdEngine = gameModel.activeEngine.getPath();
-        _engineProcess.start(gameModel.activeEngine.getFile());
-//        sendCommand("start "+cmdEngine);
-//        sendCommand("uci");
-        sendCommand("ucinewgame");
-        for(EngineOption enOpt : gameModel.activeEngine.options) {
-            if(enOpt.isNotDefault()) {
-                sendCommand(enOpt.toUciCommand());
-            }
-        }
-        if(gameModel.activeEngine.isInternal()) {
-            sendCommand("setoption name Skill Level value " + gameModel.getEngineStrength());
-        }
-        // trigger statechange
-        gameModel.setMode(GameModel.MODE_PLAY_WHITE);
-        gameModel.setFlipBoard(false);
-        gameModel.setHumanPlayerColor(CONSTANTS.WHITE);
-        gameModel.triggerStateChange();
+    public void quit() {
+        _engine.sendCommand("quit");
     }
 
-    public void activatePlayBlackMode(final GameModel gameModel) {
-        gameModel.lastSeenBestmove = "";
-        // first change gamestate and reset engine
-        sendCommand("stop");
-        sendCommand("quit");
-        String cmdEngine = gameModel.activeEngine.getPath();
-        sendCommand("start "+cmdEngine);
-        sendCommand("uci");
-        sendCommand("ucinewgame");
-        for(EngineOption enOpt : gameModel.activeEngine.options) {
-            if(enOpt.isNotDefault()) {
-                sendCommand(enOpt.toUciCommand());
-            }
-        }
-        if(gameModel.activeEngine.isInternal()) {
-            sendCommand("setoption name Skill Level value " + gameModel.getEngineStrength());
-        }
-        // trigger statechange
-        gameModel.setMode(GameModel.MODE_PLAY_BLACK);
-        gameModel.setFlipBoard(true);
-        gameModel.setHumanPlayerColor(CONSTANTS.BLACK);
-        gameModel.triggerStateChange();
+    void setMultiPv(final int multiPv) {
+        _engine.setMultiPv(multiPv);
+    }
+
+    public void activatePlayBlackMode() {
+        _engine.activatePlayBlackMode();
+    }
+
+    public void activatePlayWhiteMode() {
+        _engine.activatePlayWhiteMode();
+    }
+
+    public void activateAnalysisMode() {
+        _engine.activateAnalysisMode();
     }
 
 }

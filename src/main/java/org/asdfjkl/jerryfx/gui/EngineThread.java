@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -44,16 +43,15 @@ public class EngineThread extends Thread {
     private long lastInfoUpdate = System.currentTimeMillis();
     private long lastBestmoveUpdate = System.currentTimeMillis();
 
-    private final EngineInfo engineInfo;
+    private final EngineState _engineState;
 
     private boolean readyok = false;
     private boolean inGoInfinite = false;
 
-    public EngineThread(final UciEngineProcess engineProcess, final File path) {
+    public EngineThread(final UciEngineProcess engineProcess) {
         this.engineProcess = engineProcess;
         this.cmdQueue = engineProcess.getCommandQueue();
-        this.engineInfo = new EngineInfo();
-//        this.cmdQueue = cmdQueue;
+        _engineState = new EngineState();
         stringProperty = new SimpleStringProperty(this, "String", "");
         setDaemon(true);
     }
@@ -64,10 +62,6 @@ public class EngineThread extends Thread {
 
     @Override
     public void run() {
-//        if(engineProcess == null) { // engine not running
-//            if(!cmdQueue.isEmpty()) {
-//            }
-//        }
         startEngine();
         while (true) {
             try {
@@ -109,30 +103,14 @@ public class EngineThread extends Thread {
     }
 
     private void startEngine() {
-//        try {
-//            String cmd = cmdQueue.take();
-//            if (cmd.startsWith("start")) {
-                // reset engine info if we start
-                engineInfo.clear();
-//                File engineCmd = new File(cmd.substring(6));
-//                try {
-//                    engineProcess.start(engineCmd);
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                }
-                engineInfo.strength = -1;
-//            }
-//        }
-//        catch (InterruptedException e) {
-            // Propogate the interrupt
-//            interrupt();
-//        }
+        _engineState.clear();
+        _engineState.setStrength(-1);
     }
 
     private void initialise()
             throws IOException, InterruptedException {
         // the command uci must be send immediately after startup
-        // some engines will not report readyok on isready directly
+        // some _engineDefinitions will not report readyok on isready directly
         // after startup (like e.g. arasan). thus always send
         // 'uci' without waiting for isready
         // TODO: Doesn't peeking here lead us to an infinite loop as the non-uci command will never be taken off given
@@ -159,14 +137,14 @@ public class EngineThread extends Thread {
             while(matchMoves.find()) {
                 cnt++;
             }
-            if(cnt > 0) {
-                engineInfo.halfmoves = cnt;
-            }
+//            if(cnt > 0) {
+//                _engineState.setHalfmoves(cnt);
+//            }
         }
 
         if(cmd.startsWith("position fen")) {
             String fen = cmd.substring(13);
-            engineInfo.setFen(fen);
+            _engineState.setFen(fen);
         }
 
         if(cmd.startsWith("go infinite")) {
@@ -176,17 +154,17 @@ public class EngineThread extends Thread {
         if(cmd.startsWith("setoption name Skill Level")) {
             Matcher matchExpressionStrength = REG_STRENGTH.matcher(cmd);
             if(matchExpressionStrength.find()) {
-                engineInfo.strength = Integer.parseInt(matchExpressionStrength.group().substring(18));
+                _engineState.setStrength(Integer.parseInt(matchExpressionStrength.group().substring(18)));
             }
         }
 
         if(cmd.startsWith("setoption name MultiPV value")) {
-            engineInfo.nrPvLines = Integer.parseInt(cmd.substring(29,30));
+            _engineState.nrPvLines = Integer.parseInt(cmd.substring(29, 30));
         }
 
         // reset engine info if we quit
         if(cmd.contains("quit")) {
-            engineInfo.clear();
+            _engineState.clear();
         }
 
         engineProcess.send(cmd);
@@ -195,7 +173,7 @@ public class EngineThread extends Thread {
     private void sendUpdate() {
         long currentMs = System.currentTimeMillis();
         if((currentMs - lastInfoUpdate) > 100) {
-            stringProperty.set("INFO " + engineInfo.toString());
+            stringProperty.set("INFO " + _engineState.toString());
             lastInfoUpdate = currentMs;
         }
         // we need to constantly send "bestmove". If we only send it once,
@@ -204,7 +182,7 @@ public class EngineThread extends Thread {
         // bestmove info. Instead, the GUI will receive bestmove frequently
         // but ignore the info, if already processed.
         if((currentMs - lastBestmoveUpdate) > 800) {
-            stringProperty.set(engineInfo.bestmove);
+            stringProperty.set(_engineState.bestmove);
             lastBestmoveUpdate = currentMs;
         }
     }
@@ -217,25 +195,7 @@ public class EngineThread extends Thread {
 
     private void processEngineResponse()
             throws IOException {
-        List<String> response = engineProcess.receive();
-        for(String line: response) {
-            if (!line.isEmpty()) {
-                _logger.debug("Received: {}", line);
-                //lastString = line;
-                // todo: instead of directly setting bestmove,
-                // try updating engine info
-                if(line.startsWith("bestmove")) {
-                    engineInfo.bestmove = "BESTMOVE|"
-                            + line.substring(9)
-                            +"|"+engineInfo.score.get(0)
-                            +"|"+String.join(" ", engineInfo.pvList)
-                            +"|"+engineInfo.seesMate.get(0)
-                            +"|"+engineInfo.mate.get(0);
-                } else {
-                    engineInfo.update(line);
-                }
-            }
-        }
+        _engineState.processEngineResponse(engineProcess.receive());
     }
 
 }

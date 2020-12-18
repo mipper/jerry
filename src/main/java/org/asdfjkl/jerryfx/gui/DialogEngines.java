@@ -50,8 +50,8 @@ public class DialogEngines {
     Stage stage;
     boolean accepted = false;
 
-    ObservableList<Engine> engineList;
-    ListView<Engine> engineListView;
+    ObservableList<EngineDefinition> _engineDefinitionList;
+    ListView<EngineDefinition> engineListView;
 
     final Button btnAdd = new Button("Add...");
     final Button btnRemove = new Button("Remove...");
@@ -63,16 +63,16 @@ public class DialogEngines {
 
     int selectedIndex = 0;
 
-    public boolean show(ArrayList<Engine> engines, int idxSelectedEngine) {
+    public boolean show(ArrayList<EngineDefinition> engineDefinitions, int idxSelectedEngine) {
 
-        engineList = FXCollections.observableArrayList(engines);
+        _engineDefinitionList = FXCollections.observableArrayList(engineDefinitions);
 
-        engineListView = new ListView<Engine>();
-        engineListView.setItems(engineList);
+        engineListView = new ListView<EngineDefinition>();
+        engineListView.setItems(_engineDefinitionList);
 
-        engineListView.setCellFactory(param -> new ListCell<Engine>() {
+        engineListView.setCellFactory(param -> new ListCell<EngineDefinition>() {
             @Override
-            protected void updateItem(Engine item, boolean empty) {
+            protected void updateItem(EngineDefinition item, boolean empty) {
                 super.updateItem(item, empty);
 
                 if (empty || item == null || item.getName() == null) {
@@ -83,11 +83,11 @@ public class DialogEngines {
             }
         });
 
-        engineListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<Engine>() {
+        engineListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<EngineDefinition>() {
             @Override
-            public void changed(ObservableValue<? extends Engine> observable, Engine oldValue, Engine newValue) {
+            public void changed(ObservableValue<? extends EngineDefinition> observable, EngineDefinition oldValue, EngineDefinition newValue) {
 
-                selectedIndex = engineList.indexOf(newValue);
+                selectedIndex = _engineDefinitionList.indexOf(newValue);
                 if(selectedIndex == 0) {
                     btnEditParameters.setDisable(true);
                     btnResetParameters.setDisable(true);
@@ -189,26 +189,26 @@ public class DialogEngines {
     }
 
     private void btnRemoveEngineClicked() {
-        Engine selectedEngine = engineListView.getSelectionModel().getSelectedItem();
-        engineList.remove(selectedEngine);
-        btnAdd.setDisable(engineList.size() > 9);
+        EngineDefinition selectedEngineDefinition = engineListView.getSelectionModel().getSelectedItem();
+        _engineDefinitionList.remove(selectedEngineDefinition);
+        btnAdd.setDisable(_engineDefinitionList.size() > 9);
     }
 
     private void btnResetParametersClicked() {
 
-        Engine selectedEngine = engineListView.getSelectionModel().getSelectedItem();
-        for(EngineOption enOpt : selectedEngine.options) {
+        EngineDefinition selectedEngineDefinition = engineListView.getSelectionModel().getSelectedItem();
+        for(EngineOption enOpt : selectedEngineDefinition.options) {
             enOpt.resetToDefault();
         }
     }
 
     private void btnEditParametersClicked() {
-        Engine selectedEngine = engineListView.getSelectionModel().getSelectedItem();
+        EngineDefinition selectedEngineDefinition = engineListView.getSelectionModel().getSelectedItem();
         DialogEngineOptions dlg = new DialogEngineOptions();
-        boolean accepted = dlg.show(selectedEngine.options);
+        boolean accepted = dlg.show(selectedEngineDefinition.options);
         if(accepted) {
             // collect all entries from dialog
-            for(EngineOption enOpt : selectedEngine.options) {
+            for(EngineOption enOpt : selectedEngineDefinition.options) {
 
                 String optName = enOpt.name;
                 if(enOpt.type == EN_OPT_TYPE_CHECK) {
@@ -245,21 +245,21 @@ public class DialogEngines {
         stage.initModality(Modality.APPLICATION_MODAL);
         File file = fileChooser.showOpenDialog(stage);
         if (file != null) {
-            Engine engine = new Engine();
-            engine.setPath(file.getAbsolutePath());
+            EngineDefinition engineDefinition = new EngineDefinition();
+            engineDefinition.setPath(file.getAbsolutePath());
 
             try (UciEngineProcess engineProcess = new UciEngineProcess(null)) {
                 engineProcess.start(file);
                 List<String> reply = engineProcess.sendSynchronous("uci");
                 for(String line: reply) {
                     if (line.startsWith("id name")) {
-                        engine.setName(line.substring(7).trim());
+                        engineDefinition.setName(line.substring(7).trim());
                     }
                     else {
                         EngineOption engineOption = new EngineOption();
                         boolean parsed = engineOption.parseUciOptionString(line);
                         if (parsed) {
-                            engine.options.add(engineOption);
+                            engineDefinition.options.add(engineOption);
                         }
                     }
                 }
@@ -268,9 +268,9 @@ public class DialogEngines {
                 e.printStackTrace();
             }
 
-            if(engine.getName() != null && !engine.getName().isEmpty()) {
-                engineList.add(engine);
-                int idx = engineList.indexOf(engine);
+            if(engineDefinition.getName() != null && !engineDefinition.getName().isEmpty()) {
+                _engineDefinitionList.add(engineDefinition);
+                int idx = _engineDefinitionList.indexOf(engineDefinition);
                 Platform.runLater(() -> {
                     engineListView.scrollTo(idx);
                     engineListView.getSelectionModel().select(idx);
@@ -278,7 +278,7 @@ public class DialogEngines {
             }
         }
 
-        btnAdd.setDisable(engineList.size() > 9);
+        btnAdd.setDisable(_engineDefinitionList.size() > 9);
     }
 
 }

@@ -21,7 +21,7 @@ package org.asdfjkl.jerryfx.gui;
 import java.io.File;
 import java.util.ArrayList;
 
-public class Engine {
+public class EngineDefinition {
 
     private String name = "";
     private String path = "";
@@ -107,9 +107,9 @@ public class Engine {
         }
     }
 
-    public Engine makeCopy() {
+    public EngineDefinition makeCopy() {
 
-        Engine copy = new Engine();
+        EngineDefinition copy = new EngineDefinition();
         copy.name = this.name;
         copy.path = this.path;
         copy.isInternal = this.isInternal;

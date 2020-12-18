@@ -18,88 +18,93 @@
 
 package org.asdfjkl.jerryfx.gui;
 
+import javafx.application.Platform;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+import org.asdfjkl.jerryfx.engine.InfoListener;
 import org.asdfjkl.jerryfx.lib.Board;
 import org.asdfjkl.jerryfx.lib.CONSTANTS;
 import org.asdfjkl.jerryfx.lib.Move;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class EngineInfo {
+public class EngineState {
 
-    static final int MAX_PV = 4;
+    private static final Logger _logger = LoggerFactory.getLogger(EngineState.class);
+    private static final int MAX_PV = 4;
 
-    final Pattern READYOK        = Pattern.compile("readok");
-    final Pattern SCORECP        = Pattern.compile("score\\scp\\s-{0,1}(\\d)+");
-    final Pattern NPS            = Pattern.compile("nps\\s(\\d)+");
-    final Pattern SELDEPTH       = Pattern.compile("seldepth\\s(\\d)+");
-    final Pattern DEPTH          = Pattern.compile("depth\\s(\\d)+");
-    final Pattern MATE           = Pattern.compile("score\\smate\\s-{0,1}(\\d)+");
-    final Pattern CURRMOVENUMBER = Pattern.compile("currmovenumber\\s(\\d)+");
-    final Pattern CURRMOVE       = Pattern.compile("currmove\\s[a-z]\\d[a-z]\\d[a-z]{0,1}");
-    final Pattern BESTMOVE       = Pattern.compile("bestmove\\s[a-z]\\d[a-z]\\d[a-z]{0,1}");
-    final Pattern PV             = Pattern.compile("pv(\\s[a-z]\\d[a-z]\\d[a-z]{0,1})+");
-    final Pattern POS            = Pattern.compile("position\\s");
-    final Pattern IDNAME         = Pattern.compile("id\\sname ([^\n]+)");
-    final Pattern MOVE           = Pattern.compile("\\s[a-z]\\d[a-z]\\d([a-z]{0,1})\\s");
-    final Pattern MOVES          = Pattern.compile("\\s[a-z]\\d[a-z]\\d([a-z]{0,1})");
-    final Pattern MULTIPV        = Pattern.compile("multipv\\s(\\d)+");
+    private static final Pattern READYOK = Pattern.compile("readok");
+    private static final Pattern SCORECP = Pattern.compile("score\\scp\\s-{0,1}(\\d)+");
+    private static final Pattern NPS = Pattern.compile("nps\\s(\\d)+");
+    private static final Pattern SELDEPTH = Pattern.compile("seldepth\\s(\\d)+");
+    private static final Pattern DEPTH = Pattern.compile("depth\\s(\\d)+");
+    private static final Pattern MATE = Pattern.compile("score\\smate\\s-{0,1}(\\d)+");
+    private static final Pattern CURRMOVENUMBER = Pattern.compile("currmovenumber\\s(\\d)+");
+    private static final Pattern CURRMOVE = Pattern.compile("currmove\\s[a-z]\\d[a-z]\\d[a-z]{0,1}");
+    private static final Pattern BESTMOVE = Pattern.compile("bestmove\\s[a-z]\\d[a-z]\\d[a-z]{0,1}");
+    private static final Pattern PV = Pattern.compile("pv(\\s[a-z]\\d[a-z]\\d[a-z]{0,1})+");
+    private static final Pattern POS = Pattern.compile("position\\s");
+    private static final Pattern IDNAME = Pattern.compile("id\\sname ([^\n]+)");
+    private static final Pattern MOVE = Pattern.compile("\\s[a-z]\\d[a-z]\\d([a-z]{0,1})\\s");
+    private static final Pattern MOVES = Pattern.compile("\\s[a-z]\\d[a-z]\\d([a-z]{0,1})");
+    private static final Pattern MULTIPV = Pattern.compile("multipv\\s(\\d)+");
 
-    String id = "";
-    int strength = -1;
+    private String id = "";
+    private int strength = -1;
     //int currentFullmoveNumber = 0; // store fullmove from uci output, not from game
-    int fullMoveNumber = 1;
-    int halfmoves = 0;
-    String currentMove = "";
-    int nps = 0;
-    int selDepth = -1;
-    int depth = -1;
-    boolean flipEval = false;
+    private int fullMoveNumber = 1;
+//    private int halfmoves = 0;
+    private String currentMove = "";
+    private int nps = 0;
+    private int selDepth = -1;
+    private int depth = -1;
 
     ArrayList<String> pvList;
-    final ArrayList<String> pvSan;
+    private final ArrayList<String> pvSan;
     final ArrayList<Integer> score;
     final ArrayList<Integer> mate;
     final ArrayList<Boolean> seesMate;
 
-    boolean turn = CONSTANTS.WHITE;
-    String fen = "";
+    private boolean turn = CONSTANTS.WHITE;
+    private String fen = "";
 
     int nrPvLines = 1;
 
     String bestmove = "";
 
-    public EngineInfo() {
-
+    public EngineState() {
         pvList = new ArrayList<>();
         pvSan = new ArrayList<>();
         score = new ArrayList<>();
         mate = new ArrayList<>();
         seesMate = new ArrayList<>();
-
-        for(int i=0;i<MAX_PV;i++ ) {
+        for (int i = 0; i < MAX_PV; i++) {
             pvSan.add("");
             score.add(0);
             mate.add(0);
             seesMate.add(false);
         }
-
     }
 
     public void clear() {
         id = "";
-        strength = -1;
+        setStrength(-1);
         fullMoveNumber = 1;
-        halfmoves = 0;
+//        setHalfmoves(0);
         currentMove = "";
         nps = 0;
         selDepth = -1;
         depth = -1;
-        flipEval = false;
 
         pvList.clear();
         pvSan.clear();
@@ -114,7 +119,7 @@ public class EngineInfo {
 
         bestmove = "";
 
-        for(int i=0;i<MAX_PV;i++ ) {
+        for (int i = 0; i < MAX_PV; i++) {
             pvSan.add("");
             score.add(0);
             mate.add(0);
@@ -124,27 +129,42 @@ public class EngineInfo {
 
     public void setFen(String fen) {
         // update turn
-        if(!fen.isEmpty()) {
+        if (!fen.isEmpty()) {
             Board board = new Board(fen);
             this.turn = board.turn;
             this.fen = fen;
-            this.halfmoves = board.halfmoveClock;
+//            this.setHalfmoves(board.halfmoveClock);
             this.fullMoveNumber = board.fullmoveNumber;
         }
     }
 
+    public void processEngineResponse(final List<String> response)
+            throws IOException {
+        for(String line: response) {
+            if (!line.isEmpty()) {
+                _logger.debug("Received: {}", line);
+                //lastString = line;
+                // todo: instead of directly setting bestmove,
+                // try updating engine info
+                if(line.startsWith("bestmove")) {
+                    bestmove = "BESTMOVE|" + line.substring(9)
+                                           + "|" + score.get(0)
+                                           + "|" + String.join(" ", pvList)
+                                           + "|" + seesMate.get(0)
+                                           + "|" + mate.get(0);
+                } else {
+                    update(line);
+                }
+            }
+        }
+    }
+
     public void update(String engineFeedback) {
-
         int multiPv = 0;
-
         String[] lines = engineFeedback.split("\n");
-
-        for(int i=0;i<lines.length;i++) {
-
-            String line = lines[i];
-
+        for (String line : lines) {
             Matcher matchPVIdx = MULTIPV.matcher(line);
-            if(matchPVIdx.find()) {
+            if (matchPVIdx.find()) {
                 String sMultiPV = matchPVIdx.group();
                 multiPv = Integer.parseInt(sMultiPV.substring(8)) - 1;
             }
@@ -155,61 +175,61 @@ public class EngineInfo {
             if (matchScoreCP.find()) {
                 String sScore = matchScoreCP.group();
                 Integer dScore = Integer.parseInt(sScore.substring(9));
-                if(this.turn == CONSTANTS.BLACK) {
+                if (this.turn == CONSTANTS.BLACK) {
                     score.set(multiPv, -dScore);
-                } else {
+                }
+                else {
                     score.set(multiPv, dScore);
                 }
                 seesMate.set(multiPv, false);
-                }
+            }
 
             Matcher matchNps = NPS.matcher(line);
-            if(matchNps.find()) {
+            if (matchNps.find()) {
                 String sNps = matchNps.group();
                 nps = Integer.parseInt(sNps.substring(4));
             }
 
             Matcher matchSelDepth = SELDEPTH.matcher(line);
-            if(matchSelDepth.find()) {
+            if (matchSelDepth.find()) {
                 String sSelDepth = matchSelDepth.group();
                 selDepth = Integer.parseInt(sSelDepth.substring(9));
             }
 
             Matcher matchDepth = DEPTH.matcher(line);
-            if(matchDepth.find()) {
+            if (matchDepth.find()) {
                 String sDepth = matchDepth.group();
                 depth = Integer.parseInt(sDepth.substring(6));
             }
 
             Matcher matchMate = MATE.matcher(line);
-            if(matchMate.find()) {
+            if (matchMate.find()) {
                 String sMate = matchMate.group();
                 mate.set(multiPv, Integer.parseInt(sMate.substring(11)));
                 seesMate.set(multiPv, true);
             }
 
             Matcher matchCurrMove = CURRMOVE.matcher(line);
-            if(matchCurrMove.find()) {
+            if (matchCurrMove.find()) {
                 String sCurrMove = matchCurrMove.group();
                 currentMove = sCurrMove.substring(9);
             }
 
             Matcher matchPV = PV.matcher(line);
-            if(matchPV.find()) {
+            if (matchPV.find()) {
                 String sMoves = matchPV.group().substring(3);
                 pvList = new ArrayList<>(Arrays.asList(sMoves.split(" ")));
                 updateSan(multiPv);
             }
 
             Matcher matchId = IDNAME.matcher(line);
-            if(matchId.find()) {
+            if (matchId.find()) {
                 id = matchId.group().substring(8).split("\n")[0];
             }
         }
     }
 
     private void updateSan(int multiPvIndex) {
-
         if (pvList.size() > 0 && !fen.isEmpty()) {
             pvSan.set(multiPvIndex, "");
             Board b = new Board(fen);
@@ -219,22 +239,24 @@ public class EngineInfo {
                 whiteMoves = false;
                 pvSan.set(multiPvIndex, pvSan.get(multiPvIndex) + moveNo + ". ...");
             }
-                for (String moveUci : pvList) {
-                    try {
-                        Move mi = new Move(moveUci);
-                        String san = b.san(mi);
-                        if (whiteMoves) {
-                            pvSan.set(multiPvIndex, pvSan.get(multiPvIndex) + " " + moveNo + ". " + san);
-                        } else {
-                            pvSan.set(multiPvIndex, pvSan.get(multiPvIndex) + " " + san);
-                            moveNo++;
-                        }
-                        whiteMoves = !whiteMoves;
-                        b.apply(mi);
-                    } catch(IllegalArgumentException e) {
-                        continue;
+            for (String moveUci : pvList) {
+                try {
+                    Move mi = new Move(moveUci);
+                    String san = b.san(mi);
+                    if (whiteMoves) {
+                        pvSan.set(multiPvIndex, pvSan.get(multiPvIndex) + " " + moveNo + ". " + san);
                     }
+                    else {
+                        pvSan.set(multiPvIndex, pvSan.get(multiPvIndex) + " " + san);
+                        moveNo++;
+                    }
+                    whiteMoves = !whiteMoves;
+                    b.apply(mi);
                 }
+                catch (IllegalArgumentException e) {
+                    _logger.info("So what happened here?", e);
+                }
+            }
         }
     }
 
@@ -245,54 +267,57 @@ public class EngineInfo {
         StringBuilder outStr = new StringBuilder();
         outStr.append("|");
 
-        if(!id.isEmpty()) {
-            if(strength >= 0) {
+        if (!id.isEmpty()) {
+            if (getStrength() >= 0) {
                 outStr.append(id);
-                if(id.contains("Stockfish") && strength == 20) {
+                if (id.contains("Stockfish") && getStrength() == 20) {
                     outStr.append(" (Level MAX)");
-                } else {
-                    outStr.append(" (Level ").append(strength).append(")");
                 }
-            } else {
+                else {
+                    outStr.append(" (Level ").append(getStrength()).append(")");
+                }
+            }
+            else {
                 outStr.append(id);
             }
         }
 
         outStr.append("|");
 
-        if(nps != 0) {
-            outStr.append(nps/1000.0d).append(" kn/s");
+        if (nps != 0) {
+            outStr.append(nps / 1000.0d).append(" kn/s");
         }
 
         outStr.append("|");
 
-        if(!this.currentMove.isEmpty()) {
+        if (!this.currentMove.isEmpty()) {
             outStr.append(currentMove);
             outStr.append(" (depth ").append(depth).append("/").append(selDepth).append(")");
         }
 
         outStr.append("|");
 
-        for(int i=0;i<4;i++) {
-            if(i<nrPvLines) {
-                if(seesMate.get(i)) {
+        for (int i = 0; i < 4; i++) {
+            if (i < nrPvLines) {
+                if (seesMate.get(i)) {
                     int nrMates = mate.get(i);
                     // if it is black's turn, we need to invert
                     // the #mates, since the evaluation is always
                     // from the side that is moving - but the GUI
                     // always writes + if white mates, and - if black mates
-                    if(turn == CONSTANTS.BLACK) {
+                    if (turn == CONSTANTS.BLACK) {
                         nrMates = -nrMates;
                     }
                     // if it is black's turn, and the engine
                     outStr.append("(#").append(nrMates).append(") ");
-                } else {
+                }
+                else {
                     //if(this->score != 0.0) {
                     DecimalFormat df = new DecimalFormat("#0.00", DecimalFormatSymbols.getInstance(Locale.US));
                     String floatScore = df.format(score.get(i) / 100.0);
                     outStr.append("(").append(floatScore).append(") ");
                 }
-                if(!pvSan.get(i).isEmpty()) {
+                if (!pvSan.get(i).isEmpty()) {
                     outStr.append(pvSan.get(i));
                 }
             }
@@ -300,5 +325,17 @@ public class EngineInfo {
         }
         return outStr.toString();
     }
+
+    private int getStrength() {
+        return strength;
+    }
+
+    public void setStrength(int strength) {
+        this.strength = strength;
+    }
+
+//    public void setHalfmoves(int halfmoves) {
+//        this.halfmoves = halfmoves;
+//    }
 
 }

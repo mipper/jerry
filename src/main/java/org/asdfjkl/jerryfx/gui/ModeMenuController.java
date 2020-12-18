@@ -22,6 +22,8 @@ import org.asdfjkl.jerryfx.lib.Board;
 import org.asdfjkl.jerryfx.lib.CONSTANTS;
 import org.asdfjkl.jerryfx.lib.GameNode;
 import org.asdfjkl.jerryfx.lib.Move;
+import org.asdfjkl.jerryfx.engine.Engine;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,11 +36,13 @@ public class ModeMenuController implements StateChangeListener {
 
     private static final Logger _logger = LoggerFactory.getLogger(ModeMenuController.class);
 
+    private final Engine _engine;
     private final GameModel gameModel;
     private final EngineOutputView engineOutputView;
     private EngineController engineController;
 
-    public ModeMenuController(GameModel gameModel, EngineOutputView engineOutputView) {
+    public ModeMenuController(final Engine engine, GameModel gameModel, EngineOutputView engineOutputView) {
+        _engine = engine;
         this.gameModel = gameModel;
         this.engineOutputView = engineOutputView;
     }
@@ -48,6 +52,9 @@ public class ModeMenuController implements StateChangeListener {
     }
 
     public void handleEngineInfo(String s) {
+        if(s == null || s.isBlank()) {
+            return;
+        }
         if(s.startsWith("INFO")) {
             //"INFO |Stockfish 12 (Level MAX)|145.081 kn/s||(#0)  23. Be7#||||"
             String[] sSplit = s.split("\\|");
@@ -71,32 +78,7 @@ public class ModeMenuController implements StateChangeListener {
     }
 
     public void activateAnalysisMode() {
-        getGameModel().lastSeenBestmove = "";
-        // first change gamestate and reset engine
-        engineController.sendCommand("stop");
-        engineController.sendCommand("quit");
-        String cmdEngine = getGameModel().activeEngine.getPath();
-        engineController.sendCommand("start "+cmdEngine);
-        engineController.sendCommand("uci");
-        engineController.sendCommand("ucinewgame");
-        for(EngineOption enOpt : getGameModel().activeEngine.options) {
-            if(enOpt.isNotDefault()) {
-                engineController.sendCommand(enOpt.toUciCommand());
-            }
-        }
-        if(getGameModel().activeEngine.supportsMultiPV()) {
-            engineController.sendCommand("setoption name MultiPV value " + getGameModel().getMultiPv());
-        }
-        getGameModel().setMode(GameModel.MODE_ANALYSIS);
-        getGameModel().triggerStateChange();
-    }
-
-    public void activateEnterMovesMode() {
-        getGameModel().lastSeenBestmove = "";
-//        engineController.sendCommand("stop");
-//        engineController.sendCommand("quit");
-        getGameModel().setMode(GameModel.MODE_ENTER_MOVES);
-        getGameModel().triggerStateChange();
+        engineController.activateAnalysisMode();
     }
 
     private void handleStateChangeAnalysis() {
@@ -140,7 +122,7 @@ public class ModeMenuController implements StateChangeListener {
         if(!continueAnalysis) {
             // we are at the root or found a book move
             getGameModel().getGame().setTreeWasChanged(true);
-            activateEnterMovesMode();
+            _engine.activateEnterMovesMode();
             //FlatAlert alert = new FlatAlert(Alert.AlertType.INFORMATION);
             DialogSimpleAlert dlg = new DialogSimpleAlert();
             dlg.show("     The analysis is finished.     ");
@@ -152,11 +134,11 @@ public class ModeMenuController implements StateChangeListener {
         // first change gamestate and reset engine
         engineController.sendCommand("stop");
         engineController.sendCommand("quit");
-        String cmdEngine = getGameModel().activeEngine.getPath();
+        String cmdEngine = getGameModel().getActiveEngine().getPath();
         engineController.sendCommand("start "+cmdEngine);
         engineController.sendCommand("uci");
         engineController.sendCommand("ucinewgame");
-        for(EngineOption enOpt : getGameModel().activeEngine.options) {
+        for(EngineOption enOpt : getGameModel().getActiveEngine().options) {
             if(enOpt.isNotDefault()) {
                 engineController.sendCommand(enOpt.toUciCommand());
             }
@@ -178,11 +160,11 @@ public class ModeMenuController implements StateChangeListener {
 
         engineController.sendCommand("stop");
         engineController.sendCommand("quit");
-        String cmdEngine = getGameModel().activeEngine.getPath();
+        String cmdEngine = getGameModel().getActiveEngine().getPath();
         engineController.sendCommand("start "+cmdEngine);
         engineController.sendCommand("uci");
         engineController.sendCommand("ucinewgame");
-        if(getGameModel().activeEngine.supportsMultiPV()) {
+        if(getGameModel().getActiveEngine().supportsMultiPV()) {
             engineController.sendCommand("setoption name MultiPV value 1");
         }
         getGameModel().setFlipBoard(false);
@@ -259,21 +241,21 @@ public class ModeMenuController implements StateChangeListener {
         getGameModel().setMode(GameModel.MODE_ENTER_MOVES);
         getGameModel().triggerStateChange();
         DialogEngines dlg = new DialogEngines();
-        ArrayList<Engine> enginesCopy = new ArrayList<>();
-        for(Engine engine : getGameModel().engines) {
+        ArrayList<EngineDefinition> enginesCopy = new ArrayList<>();
+        for(EngineDefinition engine : getGameModel()._engineDefinitions) {
             enginesCopy.add(engine);
         }
-        int selectedIdx = getGameModel().engines.indexOf(getGameModel().activeEngine);
+        int selectedIdx = getGameModel()._engineDefinitions.indexOf(getGameModel().getActiveEngine());
         if(selectedIdx < 0) {
             selectedIdx = 0;
         }
         boolean accepted = dlg.show(enginesCopy, selectedIdx);
         if(accepted) {
-            //List<Engine> engineList = dlg.engineList
-            ArrayList<Engine> engineList = new ArrayList<>(dlg.engineList);
-            Engine selectedEngine = dlg.engineList.get(dlg.selectedIndex);
-            getGameModel().engines = engineList;
-            getGameModel().activeEngine = selectedEngine;
+            //List<EngineDefinition> _engineDefinitionList = dlg._engineDefinitionList
+            ArrayList<EngineDefinition> engineList = new ArrayList<>(dlg._engineDefinitionList);
+            EngineDefinition selectedEngine = dlg._engineDefinitionList.get(dlg.selectedIndex);
+            getGameModel()._engineDefinitions = engineList;
+            getGameModel().setActiveEngine(selectedEngine);
             getGameModel().triggerStateChange();
         }
     }
@@ -327,7 +309,7 @@ public class ModeMenuController implements StateChangeListener {
             getGameModel().currentBestPv = bestmoveItems[3];
             getGameModel().currentBestEval = Integer.parseInt(bestmoveItems[2]);
             getGameModel().currentIsMate = bestmoveItems[4].equals("true");
-            // some engines, like arasan report 0.00 in mate position with nullmove
+            // some _engineDefinitions, like arasan report 0.00 in mate position with nullmove
             // thus check manually
             //if(gameModel.getGame().getCurrentNode().getBoard().isCheckmate()) {
             //    gameModel.currentIsMate = true;

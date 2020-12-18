@@ -35,25 +35,22 @@ public class UciEngineProcess implements AutoCloseable {
         _modeMenuController = modeMenuController;
     }
 
-    public void start(final File path)
-            throws IOException {
-        _process = Runtime.getRuntime().exec(path.getAbsolutePath());
+    public void start(final File path) {
+        startEngineProcess(path);
         _receiver = new BufferedReader(new InputStreamReader(_process.getInputStream()));
         _sender = new BufferedWriter(new OutputStreamWriter(_process.getOutputStream()));
         final AtomicReference<String> count = new AtomicReference<>();
         //cmdQueue = new LinkedBlockingQueue<String>();
-        engineThread = new EngineThread(this, path);
+        engineThread = new EngineThread(this);
         engineThread.stringProperty().addListener((observable, oldValue, newValue) -> {
             _logger.debug("Listener: {}, {}->{}", observable, oldValue, newValue);
             if (count.getAndSet(newValue) == null) {
                 Platform.runLater(() -> {
                     String value = count.getAndSet(null);
-                    // TODO: put this back
                     _modeMenuController.handleEngineInfo(value);
                 });
             }
         });
-        // Don't start the thread until we're ready to use the engine!
         engineThread.start();
     }
 
@@ -111,7 +108,7 @@ public class UciEngineProcess implements AutoCloseable {
             send("quit");
         }
         catch (IOException e) {
-            System.err.println("Error closing engine: " + e);
+            _logger.warn("Error closing engine: " + e);
         }
         close(_sender);
         close(_receiver);
@@ -119,6 +116,15 @@ public class UciEngineProcess implements AutoCloseable {
     }
 
     // TODO: Need to check end of stream handling.
+    private void startEngineProcess(final File path) {
+        try {
+            _process = Runtime.getRuntime().exec(path.getAbsolutePath());
+        }
+        catch (IOException e) {
+            throw new EngineException("Error starting engine: " + path, e);
+        }
+    }
+
     private List<String> receiveEntireResponse()
             throws IOException {
         List<String> res = new ArrayList<>();
@@ -146,7 +152,7 @@ public class UciEngineProcess implements AutoCloseable {
             stream.close();
         }
         catch (IOException e) {
-            System.out.println("Error closing stream: " + stream);
+            _logger.info("Error closing stream: " + stream);
         }
     }
 
