@@ -1,7 +1,6 @@
 package org.asdfjkl.jerryfx.engine;
 
 import javafx.application.Platform;
-import org.asdfjkl.jerryfx.gui.EngineThread;
 import org.asdfjkl.jerryfx.gui.ModeMenuController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,10 +25,11 @@ public class UciEngineProcess implements AutoCloseable {
     private final ModeMenuController _modeMenuController;
 
     private Process _process;
+    private EngineState _engineState;
     private BufferedWriter _sender;
     private BufferedReader _receiver;
-    private EngineThread engineThread;
-    final BlockingQueue<String> cmdQueue = new LinkedBlockingQueue<>();
+    private EngineResponseThread _responseThread;
+    private final BlockingQueue<String> _cmdQueue = new LinkedBlockingQueue<>();
 
     public UciEngineProcess(final ModeMenuController modeMenuController) {
         _modeMenuController = modeMenuController;
@@ -37,12 +37,10 @@ public class UciEngineProcess implements AutoCloseable {
 
     public void start(final File path) {
         startEngineProcess(path);
-        _receiver = new BufferedReader(new InputStreamReader(_process.getInputStream()));
-        _sender = new BufferedWriter(new OutputStreamWriter(_process.getOutputStream()));
         final AtomicReference<String> count = new AtomicReference<>();
         //cmdQueue = new LinkedBlockingQueue<String>();
-        engineThread = new EngineThread(this);
-        engineThread.stringProperty().addListener((observable, oldValue, newValue) -> {
+        _responseThread = new EngineResponseThread(this, _engineState);
+        _responseThread.stringProperty().addListener((observable, oldValue, newValue) -> {
             _logger.debug("Listener: {}, {}->{}", observable, oldValue, newValue);
             if (count.getAndSet(newValue) == null) {
                 Platform.runLater(() -> {
@@ -51,17 +49,17 @@ public class UciEngineProcess implements AutoCloseable {
                 });
             }
         });
-        engineThread.start();
+        _responseThread.start();
     }
 
     public BlockingQueue<String> getCommandQueue() {
-        return cmdQueue;
+        return _cmdQueue;
     }
 
     public void acceptCommand(final String cmd) {
         try {
-            _logger.debug("Accept command: {}", cmd);
-            cmdQueue.put(cmd);
+            _logger.debug("Accept command: {}", cmd, new Exception());
+            _cmdQueue.put(cmd);
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -119,6 +117,10 @@ public class UciEngineProcess implements AutoCloseable {
     private void startEngineProcess(final File path) {
         try {
             _process = Runtime.getRuntime().exec(path.getAbsolutePath());
+            _receiver = new BufferedReader(new InputStreamReader(_process.getInputStream()));
+            _sender = new BufferedWriter(new OutputStreamWriter(_process.getOutputStream()));
+            _engineState = new EngineState();
+            _engineState.processEngineResponse(sendSynchronous("uci"));
         }
         catch (IOException e) {
             throw new EngineException("Error starting engine: " + path, e);

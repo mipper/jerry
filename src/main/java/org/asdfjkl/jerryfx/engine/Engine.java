@@ -16,10 +16,6 @@ public class Engine {
         _gameModel = gameModel;
     }
 
-    public void start(final File file) {
-        _engineProcess.start(file);
-    }
-
     public void setMultiPv(final int multiPv) {
         _gameModel.setMultiPv(multiPv);
         sendCommand("setoption name MultiPV value " + multiPv);

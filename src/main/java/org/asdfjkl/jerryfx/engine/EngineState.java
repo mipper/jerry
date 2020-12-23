@@ -16,19 +16,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-package org.asdfjkl.jerryfx.gui;
+package org.asdfjkl.jerryfx.engine;
 
-import javafx.application.Platform;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.StringProperty;
-import org.asdfjkl.jerryfx.engine.InfoListener;
 import org.asdfjkl.jerryfx.lib.Board;
 import org.asdfjkl.jerryfx.lib.CONSTANTS;
 import org.asdfjkl.jerryfx.lib.Move;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
@@ -138,8 +133,7 @@ public class EngineState {
         }
     }
 
-    public void processEngineResponse(final List<String> response)
-            throws IOException {
+    public void processEngineResponse(final List<String> response) {
         for(String line: response) {
             if (!line.isEmpty()) {
                 _logger.debug("Received: {}", line);

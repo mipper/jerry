@@ -72,9 +72,6 @@ public class App extends Application implements StateChangeListener {
         FooTest();
 
         gameModel = new GameModel();
-        gameModel.restoreModel();
-        gameModel.restoreBoardStyle();
-        gameModel.restoreEngines();
         ScreenGeometry screenGeometry = gameModel.restoreScreenGeometry();
         gameModel.getGame().setTreeWasChanged(true);
         gameModel.getGame().setHeaderWasChanged(true);

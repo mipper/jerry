@@ -16,11 +16,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-package org.asdfjkl.jerryfx.gui;
+package org.asdfjkl.jerryfx.engine;
 
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
-import org.asdfjkl.jerryfx.engine.UciEngineProcess;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,9 +28,9 @@ import java.util.concurrent.BlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class EngineThread extends Thread {
+public class EngineResponseThread extends Thread {
 
-    private static final Logger _logger = LoggerFactory.getLogger(EngineThread.class);
+    private static final Logger _logger = LoggerFactory.getLogger(EngineResponseThread.class);
     static final Pattern REG_MOVES = Pattern.compile("\\s[a-z]\\d[a-z]\\d([a-z]{0,1})");
     static final Pattern REG_BESTMOVE = Pattern.compile("bestmove\\s([a-z]\\d[a-z]\\d[a-z]{0,1})");
     static final Pattern REG_STRENGTH = Pattern.compile("Skill Level value \\d+");
@@ -48,10 +47,10 @@ public class EngineThread extends Thread {
     private boolean readyok = false;
     private boolean inGoInfinite = false;
 
-    public EngineThread(final UciEngineProcess engineProcess) {
+    public EngineResponseThread(final UciEngineProcess engineProcess, final EngineState state) {
         this.engineProcess = engineProcess;
         this.cmdQueue = engineProcess.getCommandQueue();
-        _engineState = new EngineState();
+        _engineState = state;
         stringProperty = new SimpleStringProperty(this, "String", "");
         setDaemon(true);
     }
@@ -118,8 +117,7 @@ public class EngineThread extends Thread {
 //        String cmd = cmdQueue.peek();
 //        if(cmd != null && cmd.equals("uci")) {
             cmdQueue.take();
-            engineProcess.sendSynchronous("uci");
-            engineProcess.sendSynchronous("isready");
+            _engineState.processEngineResponse(engineProcess.sendSynchronous("isready"));
             readyok = true;
 //        }
     }

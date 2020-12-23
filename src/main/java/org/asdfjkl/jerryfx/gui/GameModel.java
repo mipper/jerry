@@ -118,6 +118,9 @@ public class GameModel {
             }
         }
 
+        restoreModel();
+        restoreBoardStyle();
+        restoreEngines();
     }
 
     private String getStockfishPath() {
@@ -214,6 +217,10 @@ public class GameModel {
         this.currentMode = mode;
     }
 
+    public int getMode() {
+        return currentMode;
+    }
+
     public void setComputerThinkTimeSecs(int secs) {
         engineThinkTimeSecs = secs;
     }
@@ -226,12 +233,18 @@ public class GameModel {
 
     public void setEngineStrength(int strength) { engineStrength = strength; }
 
-    public int getMode() {
-        return currentMode;
-    }
-
     public int getMultiPv() {
         return multiPv;
+    }
+
+    public void setMultiPv(int multiPv) {
+        if(multiPv < 1) {
+            throw new IllegalArgumentException("setMultiPV: "+multiPv+ " but must be >= 1!");
+        }
+        if(multiPv > 4) {
+            throw new IllegalArgumentException("setMultiPV: "+multiPv+ " but must be <= 4!");
+        }
+        this.multiPv = multiPv;
     }
 
     public void setFlipBoard(boolean flipBoard) {
@@ -264,16 +277,6 @@ public class GameModel {
 
     public void setSearchPattern(SearchPattern searchPattern) {
         this.searchPattern = searchPattern;
-    }
-
-    public void setMultiPv(int multiPv) {
-        if(multiPv < 1) {
-            throw new IllegalArgumentException("setMultiPV: "+multiPv+ " but must be >= 1!");
-        }
-        if(multiPv > 4) {
-            throw new IllegalArgumentException("setMultiPV: "+multiPv+ " but must be <= 4!");
-        }
-        this.multiPv = multiPv;
     }
 
 
@@ -315,7 +318,7 @@ public class GameModel {
         prefs.putInt("ACTIVE_ENGINE_IDX", _engineDefinitions.indexOf(getActiveEngine()));
     }
 
-    public void restoreBoardStyle() {
+    private void restoreBoardStyle() {
 
         BoardStyle style = new BoardStyle();
         prefs = Preferences.userRoot().node(this.getClass().getName());
@@ -330,7 +333,7 @@ public class GameModel {
         boardStyle = style;
     }
 
-    public void restoreEngines() {
+    private void restoreEngines() {
 
         prefs = Preferences.userRoot().node(this.getClass().getName());
         int mVersion = prefs.getInt("modelVersion", 0);
@@ -391,7 +394,7 @@ public class GameModel {
 
     }
 
-    public void restoreModel() {
+    private void restoreModel() {
 
         prefs = Preferences.userRoot().node(this.getClass().getName());
         int mVersion = prefs.getInt("modelVersion", 0);

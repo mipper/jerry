@@ -38,7 +38,7 @@ public class Game {
         this.treeWasChanged = false;
         this.headerWasChanged = false;
         this.wasEcoClassified = false;
-        this.pgnHeaders = new HashMap<String,String>();
+        this.pgnHeaders = new HashMap<>();
     }
 
     private boolean containsPositionRec(long positionHash, GameNode node, int maxHalfmove) {
@@ -134,11 +134,11 @@ public class Game {
     }
 
     public void resetHeaders() {
-        this.pgnHeaders = new HashMap<String, String>();
+        this.pgnHeaders = new HashMap<>();
     }
 
     public ArrayList<String> getTags() {
-        ArrayList<String> tags = new ArrayList<String>();
+        ArrayList<String> tags = new ArrayList<>();
         tags.addAll(this.pgnHeaders.keySet());
         return tags;
     }
